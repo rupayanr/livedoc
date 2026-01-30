@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LiveDoc Architecture</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-tertiary: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent-blue: #3b82f6;
+            --accent-purple: #8b5cf6;
+            --accent-green: #22c55e;
+            --accent-orange: #f59e0b;
+            --accent-pink: #ec4899;
+            --accent-cyan: #06b6d4;
+            --border-color: #475569;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.7;
+            padding: 0;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Hero Section */
+        .hero {
+            text-align: center;
+            padding: 4rem 2rem;
+            background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 3rem;
+        }
+
+        .hero h1 {
+            font-size: 3.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 1rem;
+        }
+
+        .hero p {
+            font-size: 1.25rem;
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* Table of Contents */
+        .toc {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 3rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .toc h2 {
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+            color: var(--text-primary);
+        }
+
+        .toc-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+        }
+
+        .toc-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 1rem;
+            background: var(--bg-tertiary);
+            border-radius: 12px;
+            text-decoration: none;
+            color: var(--text-primary);
+            transition: all 0.2s ease;
+            border: 1px solid transparent;
+        }
+
+        .toc-item:hover {
+            border-color: var(--accent-blue);
+            transform: translateY(-2px);
+        }
+
+        .toc-number {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.875rem;
+        }
+
+        /* Section Styling */
+        section {
+            margin-bottom: 4rem;
+        }
+
+        h2 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 2px solid var(--accent-blue);
+            display: inline-block;
+        }
+
+        h3 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin: 2rem 0 1rem;
+            color: var(--accent-cyan);
+        }
+
+        h4 {
+            font-size: 1.125rem;
+            font-weight: 600;
+            margin: 1.5rem 0 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        p {
+            margin-bottom: 1rem;
+            color: var(--text-secondary);
+        }
+
+        /* Cards */
+        .card {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 2rem;
+            margin: 1.5rem 0;
+            border: 1px solid var(--border-color);
+        }
+
+        .card-gradient {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(139, 92, 246, 0.1));
+            border-color: rgba(59, 130, 246, 0.3);
+        }
+
+        /* Diagram Container */
+        .diagram-container {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 2rem;
+            margin: 1.5rem 0;
+            border: 1px solid var(--border-color);
+            overflow-x: auto;
+        }
+
+        .diagram-container .mermaid {
+            display: flex;
+            justify-content: center;
+        }
+
+        /* ASCII Art Container */
+        .ascii-container {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            border: 1px solid var(--border-color);
+            overflow-x: auto;
+        }
+
+        .ascii-container pre {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            line-height: 1.4;
+            color: var(--accent-green);
+            margin: 0;
+        }
+
+        /* Feature Grid */
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin: 1.5rem 0;
+        }
+
+        .feature-card {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 1.5rem;
+            border: 1px solid var(--border-color);
+            transition: all 0.2s ease;
+        }
+
+        .feature-card:hover {
+            border-color: var(--accent-blue);
+            transform: translateY(-4px);
+        }
+
+        .feature-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .feature-card h4 {
+            color: var(--text-primary);
+            margin: 0 0 0.5rem;
+        }
+
+        .feature-card p {
+            margin: 0;
+            font-size: 0.9rem;
+        }
+
+        /* Comparison Table */
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.5rem 0;
+            font-size: 0.9rem;
+        }
+
+        .comparison-table th,
+        .comparison-table td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .comparison-table th {
+            background: var(--bg-tertiary);
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .comparison-table tr:hover td {
+            background: var(--bg-secondary);
+        }
+
+        .comparison-table td {
+            color: var(--text-secondary);
+        }
+
+        /* Code/Quote Blocks */
+        .quote-block {
+            background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(6, 182, 212, 0.1));
+            border-left: 4px solid var(--accent-green);
+            border-radius: 0 12px 12px 0;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            font-style: italic;
+            color: var(--text-secondary);
+        }
+
+        .quote-block strong {
+            color: var(--text-primary);
+            font-style: normal;
+        }
+
+        /* Property Box */
+        .property-box {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            border-left: 4px solid var(--accent-purple);
+        }
+
+        .property-box code {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--accent-orange);
+            font-size: 1.1rem;
+        }
+
+        .property-box .desc {
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        /* Badge */
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .badge-blue { background: rgba(59, 130, 246, 0.2); color: var(--accent-blue); }
+        .badge-green { background: rgba(34, 197, 94, 0.2); color: var(--accent-green); }
+        .badge-purple { background: rgba(139, 92, 246, 0.2); color: var(--accent-purple); }
+        .badge-orange { background: rgba(245, 158, 11, 0.2); color: var(--accent-orange); }
+
+        /* Tech Stack Grid */
+        .tech-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+
+        .tech-item {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .tech-item .icon {
+            width: 40px;
+            height: 40px;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+        }
+
+        .tech-item .name {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .tech-item .desc {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        /* Interview Section */
+        .interview-card {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 2rem;
+            margin: 1.5rem 0;
+            border: 1px solid var(--border-color);
+        }
+
+        .interview-question {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--accent-cyan);
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+        }
+
+        .interview-question::before {
+            content: "Q";
+            background: var(--accent-cyan);
+            color: var(--bg-primary);
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.875rem;
+            flex-shrink: 0;
+        }
+
+        .interview-answer {
+            padding-left: 2.5rem;
+            color: var(--text-secondary);
+            line-height: 1.8;
+        }
+
+        .interview-answer strong {
+            color: var(--accent-green);
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 3rem 2rem;
+            border-top: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        footer a {
+            color: var(--accent-blue);
+            text-decoration: none;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--border-color);
+        }
+    </style>
+</head>
+<body>
+    <div class="hero">
+        <h1>LiveDoc Architecture</h1>
+        <p>A deep dive into real-time collaborative editing with CRDTs, WebSockets, and Y.js</p>
+    </div>
+
+    <div class="container">
+        <!-- Table of Contents -->
+        <nav class="toc">
+            <h2>Table of Contents</h2>
+            <div class="toc-grid">
+                <a href="#architecture" class="toc-item">
+                    <span class="toc-number">1</span>
+                    <span>System Architecture</span>
+                </a>
+                <a href="#crdt" class="toc-item">
+                    <span class="toc-number">2</span>
+                    <span>What is CRDT?</span>
+                </a>
+                <a href="#yjs" class="toc-item">
+                    <span class="toc-number">3</span>
+                    <span>Y.js Deep Dive</span>
+                </a>
+                <a href="#sync" class="toc-item">
+                    <span class="toc-number">4</span>
+                    <span>Real-Time Sync Flow</span>
+                </a>
+                <a href="#components" class="toc-item">
+                    <span class="toc-number">5</span>
+                    <span>Component Architecture</span>
+                </a>
+                <a href="#scaling" class="toc-item">
+                    <span class="toc-number">6</span>
+                    <span>Scaling Strategy</span>
+                </a>
+                <a href="#interview" class="toc-item">
+                    <span class="toc-number">7</span>
+                    <span>Interview Q&A</span>
+                </a>
+                <a href="#tech" class="toc-item">
+                    <span class="toc-number">8</span>
+                    <span>Tech Stack</span>
+                </a>
+            </div>
+        </nav>
+
+        <!-- Section 1: Architecture -->
+        <section id="architecture">
+            <h2>System Architecture</h2>
+            <p>LiveDoc uses a client-server architecture with Y.js CRDTs for conflict-free real-time collaboration.</p>
+
+            <div class="diagram-container">
+                <div class="mermaid">
+graph TB
+    subgraph Clients["👥 Client Layer"]
+        A["🖥️ User A<br/>React + Y.js"]
+        B["🖥️ User B<br/>React + Y.js"]
+        C["🖥️ User C<br/>React + Y.js"]
+    end
+
+    subgraph Backend["⚡ FastAPI Backend"]
+        WS["🔌 WebSocket Handler"]
+        RM["🏠 Room Manager"]
+        YM["📄 Y.js Manager"]
+        API["🌐 REST API"]
+    end
+
+    subgraph Storage["💾 Data Layer"]
+        PG[("🐘 PostgreSQL")]
+        RD[("⚡ Redis Pub/Sub")]
+    end
+
+    A <-->|WebSocket| WS
+    B <-->|WebSocket| WS
+    C <-->|WebSocket| WS
+
+    WS <--> RM
+    RM <--> YM
+    API --> PG
+    YM --> PG
+    RM <--> RD
+                </div>
+            </div>
+
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🔄</div>
+                    <h4>Real-Time Sync</h4>
+                    <p>Changes propagate to all users in ~50ms via WebSocket connections and Y.js CRDT operations.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🛡️</div>
+                    <h4>Conflict-Free</h4>
+                    <p>CRDT guarantees all clients converge to the same state, no matter the order of operations.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📴</div>
+                    <h4>Offline Support</h4>
+                    <p>Y.js stores operations locally. Reconnecting merges all offline edits automatically.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📈</div>
+                    <h4>Scalable</h4>
+                    <p>Redis pub/sub enables horizontal scaling across multiple server instances.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 2: CRDT -->
+        <section id="crdt">
+            <h2>What is CRDT?</h2>
+
+            <div class="card card-gradient">
+                <h3>The Problem: Concurrent Edits</h3>
+                <p>When multiple users edit the same document simultaneously, conflicts arise. Traditional solutions have major drawbacks:</p>
+
+                <table class="comparison-table">
+                    <thead>
+                        <tr>
+                            <th>Approach</th>
+                            <th>How it Works</th>
+                            <th>Problem</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><span class="badge badge-orange">Locking</span></td>
+                            <td>Only one user can edit at a time</td>
+                            <td>Terrible UX, defeats collaboration</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge badge-orange">Last Write Wins</span></td>
+                            <td>Most recent change overwrites</td>
+                            <td>Data loss!</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge badge-blue">OT (Google Docs)</span></td>
+                            <td>Transform operations based on context</td>
+                            <td>Complex O(n²), requires central server</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge badge-green">CRDT (Y.js)</span></td>
+                            <td>Mathematical properties guarantee merge</td>
+                            <td>✅ No conflicts, works offline</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <h3>CRDT Mathematical Properties</h3>
+            <p>CRDTs guarantee eventual consistency through three mathematical properties:</p>
+
+            <div class="property-box">
+                <code>A ⊕ B = B ⊕ A</code>
+                <div class="desc"><strong>Commutativity:</strong> Order of operations doesn't matter</div>
+            </div>
+
+            <div class="property-box">
+                <code>(A ⊕ B) ⊕ C = A ⊕ (B ⊕ C)</code>
+                <div class="desc"><strong>Associativity:</strong> Grouping doesn't matter</div>
+            </div>
+
+            <div class="property-box">
+                <code>A ⊕ A = A</code>
+                <div class="desc"><strong>Idempotency:</strong> Duplicate operations have no effect</div>
+            </div>
+
+            <div class="quote-block">
+                <strong>Result:</strong> All replicas are <strong>guaranteed</strong> to converge to the same state, regardless of network conditions, timing, or order of operations. This is called <strong>Strong Eventual Consistency</strong>.
+            </div>
+        </section>
+
+        <!-- Section 3: Y.js -->
+        <section id="yjs">
+            <h2>Y.js Deep Dive</h2>
+
+            <p>Y.js assigns a <strong>unique ID</strong> to every character, making merges automatic and deterministic.</p>
+
+            <div class="card">
+                <h4>How Unique IDs Work</h4>
+                <div class="ascii-container">
+                    <pre>
+Each character gets: (clientID, clock)
+
+User A (clientID: 1) types "Hi":
+   'H' → { id: (1, 0), left: null,  right: (1,1) }
+   'i' → { id: (1, 1), left: (1,0), right: null  }
+
+User B (clientID: 2) types "!" after 'i':
+   '!' → { id: (2, 0), left: (1,1), right: null  }
+
+MERGE: Characters sorted by their unique IDs
+   Result: "Hi!" ✅
+
+No conflict because IDs are globally unique!</pre>
+                </div>
+            </div>
+
+            <h3>State Vector Sync</h3>
+            <div class="diagram-container">
+                <div class="mermaid">
+sequenceDiagram
+    participant A as Client A
+    participant S as Server
+    participant B as Client B
+
+    Note over A,B: State Vector Exchange
+    A->>S: My state: {A:5, B:2}
+    S->>A: You're missing: B ops 3-4
+    A->>A: Apply missing updates
+    Note over A: Now synced: {A:5, B:4}
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 4: Sync Flow -->
+        <section id="sync">
+            <h2>Real-Time Sync Flow</h2>
+
+            <div class="diagram-container">
+                <div class="mermaid">
+sequenceDiagram
+    participant UA as 👤 User A
+    participant YA as Y.js (A)
+    participant WS as 🔌 Server
+    participant YB as Y.js (B)
+    participant UB as 👤 User B
+
+    Note over UA,UB: User A types "Hello"
+    UA->>YA: Keystroke
+    YA->>YA: Create CRDT op
+    YA->>WS: Binary update (~8 bytes)
+    WS->>YB: Broadcast
+    YB->>YB: Auto-merge
+    YB->>UB: Update view
+
+    Note over UA,UB: Both see "Hello" ✅ (~50ms)
+                </div>
+            </div>
+
+            <h3>Connection Lifecycle</h3>
+            <div class="diagram-container">
+                <div class="mermaid">
+stateDiagram-v2
+    [*] --> Connecting: Open document
+    Connecting --> Connected: WebSocket open
+    Connected --> Syncing: Exchange state vectors
+    Syncing --> Live: Sync complete
+    Live --> Live: Send/receive updates
+    Live --> Reconnecting: Connection lost
+    Reconnecting --> Syncing: Reconnected
+    Live --> [*]: Leave document
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 5: Components -->
+        <section id="components">
+            <h2>Component Architecture</h2>
+
+            <h3>Frontend</h3>
+            <div class="diagram-container">
+                <div class="mermaid">
+flowchart TB
+    subgraph App["🎯 App.tsx"]
+        Router[React Router]
+        Toast[Toast Notifications]
+    end
+
+    subgraph Pages["📄 Pages"]
+        Login[UserSelect]
+        Home[DocumentList]
+        Edit[Editor]
+    end
+
+    subgraph Editor["✏️ Editor"]
+        Toolbar
+        CM[CodeMirror]
+        Preview[MarkdownPreview]
+    end
+
+    subgraph State["🗃️ Zustand"]
+        DocStore[documentStore]
+        UserStore[userStore]
+    end
+
+    Router --> Login
+    Router --> Home
+    Router --> Edit
+    Edit --> Toolbar
+    Edit --> CM
+    Edit --> Preview
+    CM --> DocStore
+    Login --> UserStore
+                </div>
+            </div>
+
+            <h3>Backend</h3>
+            <div class="diagram-container">
+                <div class="mermaid">
+flowchart TB
+    subgraph API["🌐 FastAPI"]
+        REST["/documents"]
+        WS["/ws/{docId}"]
+    end
+
+    subgraph Core["⚙️ Core"]
+        Room[RoomManager]
+        YJS[YjsManager]
+        Redis[RedisPubSub]
+    end
+
+    subgraph Data["💾 Data"]
+        Repo[Repository]
+        DB[(PostgreSQL)]
+    end
+
+    REST --> Repo
+    Repo --> DB
+    WS --> Room
+    WS --> YJS
+    Room --> Redis
+    YJS -.-> DB
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 6: Scaling -->
+        <section id="scaling">
+            <h2>Scaling Strategy</h2>
+
+            <div class="diagram-container">
+                <div class="mermaid">
+graph TB
+    subgraph LB["⚖️ Load Balancer"]
+        Nginx[Nginx + Sticky Sessions]
+    end
+
+    subgraph Servers["🖥️ App Servers"]
+        S1[Server 1]
+        S2[Server 2]
+        S3[Server 3]
+    end
+
+    subgraph Cache["⚡ Redis"]
+        R[(Pub/Sub)]
+    end
+
+    subgraph DB["💾 PostgreSQL"]
+        PG[(Primary)]
+    end
+
+    Nginx --> S1
+    Nginx --> S2
+    Nginx --> S3
+
+    S1 <--> R
+    S2 <--> R
+    S3 <--> R
+
+    S1 --> PG
+    S2 --> PG
+    S3 --> PG
+                </div>
+            </div>
+
+            <div class="quote-block">
+                <strong>Why Sticky Sessions?</strong> WebSocket connections are stateful. Y.js document state lives in server memory. Redis pub/sub syncs updates across all instances, but routing the same user to the same server reduces latency.
+            </div>
+        </section>
+
+        <!-- Section 7: Interview -->
+        <section id="interview">
+            <h2>Interview Q&A</h2>
+
+            <div class="interview-card">
+                <div class="interview-question">Why CRDT over Operational Transformation?</div>
+                <div class="interview-answer">
+                    CRDTs provide <strong>guaranteed eventual consistency</strong> without requiring a central server. Unlike OT (Google Docs), CRDTs work <strong>peer-to-peer</strong> and handle <strong>offline editing</strong> gracefully. Y.js uses unique IDs per character, making merges automatic. Trade-off is slightly higher memory, but simplicity and reliability are worth it.
+                </div>
+            </div>
+
+            <div class="interview-card">
+                <div class="interview-question">How does real-time sync work?</div>
+                <div class="interview-answer">
+                    When a user types, Y.js creates a CRDT operation with a <strong>unique ID</strong> (clientID + logical clock). This is encoded as a <strong>binary update (~10 bytes)</strong> and sent via WebSocket. The server broadcasts to all clients, who merge using CRDT rules. <strong>State vectors</strong> track what each client has seen, enabling efficient delta sync.
+                </div>
+            </div>
+
+            <div class="interview-card">
+                <div class="interview-question">What if two users edit the same word?</div>
+                <div class="interview-answer">
+                    Y.js handles this automatically. Each character has a unique ID, so both characters are <strong>preserved in deterministic order</strong> (client ID as tiebreaker). No data loss - worst case is merged text like "hweolrlod" which users can clean up. This is called <strong>intention preservation</strong>.
+                </div>
+            </div>
+
+            <div class="interview-card">
+                <div class="interview-question">How would you scale to millions of users?</div>
+                <div class="interview-answer">
+                    Current architecture supports horizontal scaling via <strong>sticky sessions</strong> and <strong>Redis pub/sub</strong>. For massive scale: <strong>document sharding</strong> by ID, <strong>read replicas</strong> for PostgreSQL, <strong>CDN</strong> for static assets, and <strong>connection pooling</strong> with PgBouncer.
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 8: Tech Stack -->
+        <section id="tech">
+            <h2>Technology Stack</h2>
+
+            <div class="tech-grid">
+                <div class="tech-item">
+                    <div class="icon">⚛️</div>
+                    <div>
+                        <div class="name">React 18</div>
+                        <div class="desc">UI Framework</div>
+                    </div>
+                </div>
+                <div class="tech-item">
+                    <div class="icon">📝</div>
+                    <div>
+                        <div class="name">CodeMirror 6</div>
+                        <div class="desc">Text Editor</div>
+                    </div>
+                </div>
+                <div class="tech-item">
+                    <div class="icon">🔄</div>
+                    <div>
+                        <div class="name">Y.js</div>
+                        <div class="desc">CRDT Library</div>
+                    </div>
+                </div>
+                <div class="tech-item">
+                    <div class="icon">⚡</div>
+                    <div>
+                        <div class="name">FastAPI</div>
+                        <div class="desc">Python Backend</div>
+                    </div>
+                </div>
+                <div class="tech-item">
+                    <div class="icon">🐘</div>
+                    <div>
+                        <div class="name">PostgreSQL</div>
+                        <div class="desc">Database</div>
+                    </div>
+                </div>
+                <div class="tech-item">
+                    <div class="icon">🔴</div>
+                    <div>
+                        <div class="name">Redis</div>
+                        <div class="desc">Pub/Sub</div>
+                    </div>
+                </div>
+                <div class="tech-item">
+                    <div class="icon">🐻</div>
+                    <div>
+                        <div class="name">Zustand</div>
+                        <div class="desc">State Management</div>
+                    </div>
+                </div>
+                <div class="tech-item">
+                    <div class="icon">🎨</div>
+                    <div>
+                        <div class="name">Tailwind CSS</div>
+                        <div class="desc">Styling</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <footer>
+        <p>LiveDoc Architecture Documentation</p>
+        <p>Built with ❤️ by Rupayan Roy | <a href="https://github.com/rupayan" target="_blank">GitHub</a></p>
+    </footer>
+
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'dark',
+            themeVariables: {
+                primaryColor: '#3b82f6',
+                primaryTextColor: '#f8fafc',
+                primaryBorderColor: '#475569',
+                lineColor: '#94a3b8',
+                secondaryColor: '#1e293b',
+                tertiaryColor: '#334155',
+                background: '#0f172a',
+                mainBkg: '#1e293b',
+                nodeBorder: '#475569',
+                clusterBkg: '#1e293b',
+                clusterBorder: '#475569',
+                titleColor: '#f8fafc',
+                edgeLabelBackground: '#1e293b'
+            }
+        });
+    </script>
+</body>
+</html>
