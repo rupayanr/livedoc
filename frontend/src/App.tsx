@@ -3,7 +3,6 @@ import { Toaster } from 'react-hot-toast'
 import { Editor } from './components/Editor'
 import { DocumentList } from './components/Sidebar'
 import { UserSelect } from './components/UserSelect'
-import { Architecture } from './components/Architecture'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { useUserStore } from './stores/userStore'
 
@@ -34,13 +33,14 @@ export default function App() {
   return (
     <ErrorBoundary>
       <Toaster
-        position="top-right"
+        position="bottom-right"
         toastOptions={{
           duration: 3000,
           style: {
             background: '#363636',
             color: '#fff',
             borderRadius: '8px',
+            marginBottom: 'env(safe-area-inset-bottom, 0px)',
           },
           success: {
             iconTheme: {
@@ -81,7 +81,6 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-        <Route path="/architecture" element={<Architecture />} />
       </Routes>
     </ErrorBoundary>
   )

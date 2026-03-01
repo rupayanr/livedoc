@@ -121,9 +121,9 @@ class TestPersistenceManager:
         assert result is True
 
     @pytest.mark.asyncio
-    async def test_save_document_success(self, manager):
+    async def test_save_document_success(self, manager, mock_document):
         """save_document should save Y.js state to database."""
-        document_id = uuid.uuid4()
+        document_id = mock_document.id
         mock_state = b"\x00\x01\x02"
         mock_content = "Test content"
 
@@ -134,6 +134,7 @@ class TestPersistenceManager:
             with patch.object(manager, "_get_session") as mock_session:
                 mock_db = AsyncMock()
                 mock_repo = MagicMock()
+                mock_repo.get = AsyncMock(return_value=mock_document)
                 mock_repo.update = AsyncMock()
 
                 mock_session.return_value.__aenter__ = AsyncMock(return_value=mock_db)
@@ -142,11 +143,18 @@ class TestPersistenceManager:
                 with patch(
                     "app.core.persistence.DocumentRepository", return_value=mock_repo
                 ):
-                    await manager.save_document(document_id)
+                    with patch(
+                        "app.core.persistence.VersionRepository"
+                    ) as mock_version_repo_cls:
+                        mock_version_repo = MagicMock()
+                        mock_version_repo.should_create_auto_snapshot = AsyncMock(return_value=False)
+                        mock_version_repo_cls.return_value = mock_version_repo
 
-                    mock_repo.update.assert_called_once_with(
-                        document_id, content=mock_content, y_state=mock_state
-                    )
+                        await manager.save_document(document_id)
+
+                        mock_repo.update.assert_called_once_with(
+                            document_id, content=mock_content, y_state=mock_state
+                        )
 
     @pytest.mark.asyncio
     async def test_save_document_no_state(self, manager):

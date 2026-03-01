@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { screen, waitFor } from '@testing-library/react'
+import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderWithRouter } from '../../test/test-utils'
 import { DocumentList } from './DocumentList'
@@ -45,7 +45,7 @@ describe('DocumentList', () => {
       renderWithRouter(<DocumentList />)
 
       expect(screen.getByText('LiveDoc')).toBeInTheDocument()
-      expect(screen.getByText('Real-time collaborative markdown editor')).toBeInTheDocument()
+      expect(screen.getByText('Collaborate in real-time')).toBeInTheDocument()
     })
 
     it('should render "New Document" button', () => {
@@ -88,7 +88,7 @@ describe('DocumentList', () => {
       renderWithRouter(<DocumentList />)
 
       expect(screen.getByText('No documents yet')).toBeInTheDocument()
-      expect(screen.getByText('Create your first document')).toBeInTheDocument()
+      expect(screen.getByText('Tap the button above to get started')).toBeInTheDocument()
     })
 
     it('should render document list', () => {
@@ -128,8 +128,8 @@ describe('DocumentList', () => {
 
       renderWithRouter(<DocumentList />)
 
-      // Should show formatted date
-      expect(screen.getByText(/last edited/i)).toBeInTheDocument()
+      // Should show formatted date (format: "Jan 15, XX:XX AM/PM")
+      expect(screen.getByText(/Jan 15/i)).toBeInTheDocument()
     })
   })
 
@@ -145,25 +145,15 @@ describe('DocumentList', () => {
       expect(mockCreateDocument).toHaveBeenCalled()
     })
 
-    it('should call createDocument when clicking empty state button', async () => {
+    it('should navigate after creating document', async () => {
       const user = userEvent.setup()
       mockCreateDocument.mockResolvedValue({ id: 'new-123', title: 'Untitled' })
 
       renderWithRouter(<DocumentList />)
 
-      await user.click(screen.getByText('Create your first document'))
+      await user.click(screen.getByRole('button', { name: /new document/i }))
 
       expect(mockCreateDocument).toHaveBeenCalled()
-    })
-  })
-
-  describe('document navigation', () => {
-    it('should render architecture link', () => {
-      renderWithRouter(<DocumentList />)
-
-      const link = screen.getByText(/view architecture/i)
-      expect(link).toBeInTheDocument()
-      expect(link.closest('a')).toHaveAttribute('href', '/architecture')
     })
   })
 

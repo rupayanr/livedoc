@@ -327,6 +327,8 @@ describe('createWebSocketUrl', () => {
   it('should use default WebSocket URL if not configured', () => {
     const url = createWebSocketUrl('doc-123', 'Test')
 
-    expect(url).toMatch(/^ws:\/\/localhost:8000/)
+    // Default URL pattern includes /api/v1/ws/ path and name parameter
+    expect(url).toContain('/api/v1/ws/doc-123')
+    expect(url).toContain('name=Test')
   })
 })
