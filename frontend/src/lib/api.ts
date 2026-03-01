@@ -2,6 +2,25 @@ import type { Document, DocumentListItem, Version, VersionListItem } from '../ty
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
+// Transform snake_case API response to camelCase
+function snakeToCamel(obj: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = {}
+  for (const key in obj) {
+    const camelKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase())
+    const value = obj[key]
+    if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+      result[camelKey] = snakeToCamel(value as Record<string, unknown>)
+    } else if (Array.isArray(value)) {
+      result[camelKey] = value.map(item =>
+        typeof item === 'object' && item !== null ? snakeToCamel(item as Record<string, unknown>) : item
+      )
+    } else {
+      result[camelKey] = value
+    }
+  }
+  return result
+}
+
 class ApiError extends Error {
   constructor(
     public status: number,
@@ -65,20 +84,28 @@ export const api = {
   },
 
   versions: {
-    list: (documentId: string): Promise<VersionListItem[]> =>
-      fetchApi<VersionListItem[]>(`/api/v1/documents/${documentId}/versions`),
+    list: async (documentId: string): Promise<VersionListItem[]> => {
+      const data = await fetchApi<Record<string, unknown>[]>(`/api/v1/documents/${documentId}/versions`)
+      return data.map(item => snakeToCamel(item)) as unknown as VersionListItem[]
+    },
 
-    get: (documentId: string, versionId: string): Promise<Version> =>
-      fetchApi<Version>(`/api/v1/documents/${documentId}/versions/${versionId}`),
+    get: async (documentId: string, versionId: string): Promise<Version> => {
+      const data = await fetchApi<Record<string, unknown>>(`/api/v1/documents/${documentId}/versions/${versionId}`)
+      return snakeToCamel(data) as unknown as Version
+    },
 
-    create: (documentId: string, userName?: string): Promise<Version> =>
-      fetchApi<Version>(`/api/v1/documents/${documentId}/versions${userName ? `?user_name=${encodeURIComponent(userName)}` : ''}`, {
+    create: async (documentId: string, userName?: string): Promise<Version> => {
+      const data = await fetchApi<Record<string, unknown>>(`/api/v1/documents/${documentId}/versions${userName ? `?user_name=${encodeURIComponent(userName)}` : ''}`, {
         method: 'POST',
-      }),
+      })
+      return snakeToCamel(data) as unknown as Version
+    },
 
-    restore: (documentId: string, versionId: string, userName?: string): Promise<Version> =>
-      fetchApi<Version>(`/api/v1/documents/${documentId}/versions/${versionId}/restore${userName ? `?user_name=${encodeURIComponent(userName)}` : ''}`, {
+    restore: async (documentId: string, versionId: string, userName?: string): Promise<Version> => {
+      const data = await fetchApi<Record<string, unknown>>(`/api/v1/documents/${documentId}/versions/${versionId}/restore${userName ? `?user_name=${encodeURIComponent(userName)}` : ''}`, {
         method: 'POST',
-      }),
+      })
+      return snakeToCamel(data) as unknown as Version
+    },
   },
 }

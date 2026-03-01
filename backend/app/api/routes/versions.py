@@ -43,6 +43,22 @@ async def list_versions(
     ]
 
 
+@router.get("/documents/{document_id}/versions/count")
+async def get_version_count(
+    document_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db),
+) -> dict[str, int]:
+    """Get the total number of versions for a document."""
+    doc_repo = DocumentRepository(session)
+    document = await doc_repo.get(document_id)
+    if document is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    version_repo = VersionRepository(session)
+    count = await version_repo.count_versions(document_id)
+    return {"count": count}
+
+
 @router.get("/documents/{document_id}/versions/{version_id}", response_model=VersionResponse)
 async def get_version(
     document_id: uuid.UUID,
@@ -148,19 +164,3 @@ async def restore_version(
         f"created new version {restored_version.version_number}"
     )
     return VersionResponse.model_validate(restored_version)
-
-
-@router.get("/documents/{document_id}/versions/count")
-async def get_version_count(
-    document_id: uuid.UUID,
-    session: AsyncSession = Depends(get_db),
-) -> dict[str, int]:
-    """Get the total number of versions for a document."""
-    doc_repo = DocumentRepository(session)
-    document = await doc_repo.get(document_id)
-    if document is None:
-        raise HTTPException(status_code=404, detail="Document not found")
-
-    version_repo = VersionRepository(session)
-    count = await version_repo.count_versions(document_id)
-    return {"count": count}
