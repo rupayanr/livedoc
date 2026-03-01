@@ -1,4 +1,4 @@
-import type { Document, DocumentListItem } from '../types'
+import type { Document, DocumentListItem, Version, VersionListItem } from '../types'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -58,6 +58,27 @@ export const api = {
     delete: (id: string): Promise<void> =>
       fetchApi<void>(`/api/v1/documents/${id}`, {
         method: 'DELETE',
+      }),
+
+    checkUsername: (id: string, name: string): Promise<{ available: boolean; name: string }> =>
+      fetchApi<{ available: boolean; name: string }>(`/api/v1/documents/${id}/check-username?name=${encodeURIComponent(name)}`),
+  },
+
+  versions: {
+    list: (documentId: string): Promise<VersionListItem[]> =>
+      fetchApi<VersionListItem[]>(`/api/v1/documents/${documentId}/versions`),
+
+    get: (documentId: string, versionId: string): Promise<Version> =>
+      fetchApi<Version>(`/api/v1/documents/${documentId}/versions/${versionId}`),
+
+    create: (documentId: string, userName?: string): Promise<Version> =>
+      fetchApi<Version>(`/api/v1/documents/${documentId}/versions${userName ? `?user_name=${encodeURIComponent(userName)}` : ''}`, {
+        method: 'POST',
+      }),
+
+    restore: (documentId: string, versionId: string, userName?: string): Promise<Version> =>
+      fetchApi<Version>(`/api/v1/documents/${documentId}/versions/${versionId}/restore${userName ? `?user_name=${encodeURIComponent(userName)}` : ''}`, {
+        method: 'POST',
       }),
   },
 }

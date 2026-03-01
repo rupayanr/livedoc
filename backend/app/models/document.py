@@ -29,6 +29,9 @@ class Document(Base):
     sessions: Mapped[list["Session"]] = relationship(
         "Session", back_populates="document", cascade="all, delete-orphan"
     )
+    versions: Mapped[list["DocumentVersion"]] = relationship(
+        "DocumentVersion", back_populates="document", cascade="all, delete-orphan"
+    )
 
 
 class Session(Base):
@@ -51,3 +54,25 @@ class Session(Base):
     )
 
     document: Mapped["Document"] = relationship("Document", back_populates="sessions")
+
+
+class DocumentVersion(Base):
+    __tablename__ = "document_versions"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False
+    )
+    version_number: Mapped[int] = mapped_column(nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    y_state: Mapped[bytes | None] = mapped_column(BYTEA, nullable=True)
+    created_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    snapshot_type: Mapped[str] = mapped_column(String(20), nullable=False, default="auto")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    document: Mapped["Document"] = relationship("Document", back_populates="versions")

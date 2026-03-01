@@ -12,6 +12,7 @@ from app.api.deps import async_session_maker
 from app.core.yjs_manager import yjs_manager
 from app.models.document import Session as SessionModel
 from app.repositories.document_repo import DocumentRepository
+from app.repositories.version_repo import VersionRepository
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,8 @@ class PersistenceManager:
         self._loaded_docs: set[uuid.UUID] = set()
         self._max_save_failures = 5  # Max consecutive failures before stopping auto-save
         self._save_failure_counts: dict[uuid.UUID, int] = {}
+        self._version_interval_minutes = 5  # Create version snapshot every 5 minutes
+        self._max_auto_versions = 100  # Keep max 100 auto versions per document
 
     @asynccontextmanager
     async def _get_session(self) -> AsyncGenerator[AsyncSession, None]:
@@ -72,7 +75,7 @@ class PersistenceManager:
             logger.error(f"Failed to load document {document_id}: {e}")
             return False
 
-    async def save_document(self, document_id: uuid.UUID) -> bool:
+    async def save_document(self, document_id: uuid.UUID, create_version: bool = True) -> bool:
         """Save Y.js state to database. Returns True on success."""
         state = await yjs_manager.get_state(document_id)
         if state is None:
@@ -83,8 +86,37 @@ class PersistenceManager:
         try:
             async with self._get_session() as session:
                 repo = DocumentRepository(session)
+                doc = await repo.get(document_id)
+                if doc is None:
+                    logger.warning(f"Document {document_id} not found for save")
+                    return False
+
                 await repo.update(document_id, content=content, y_state=state)
                 logger.debug(f"Saved document {document_id} ({len(state)} bytes)")
+
+                # Create auto version snapshot if enough time has passed
+                if create_version:
+                    version_repo = VersionRepository(session)
+                    should_snapshot = await version_repo.should_create_auto_snapshot(
+                        document_id, self._version_interval_minutes
+                    )
+                    if should_snapshot:
+                        await version_repo.create(
+                            document_id=document_id,
+                            title=doc.title,
+                            content=content,
+                            y_state=state,
+                            snapshot_type="auto",
+                        )
+                        logger.info(f"Created auto version snapshot for document {document_id}")
+
+                        # Clean up old auto versions
+                        deleted = await version_repo.delete_old_versions(
+                            document_id, keep_count=self._max_auto_versions
+                        )
+                        if deleted > 0:
+                            logger.debug(f"Cleaned up {deleted} old auto versions for document {document_id}")
+
                 # Reset failure count on success
                 self._save_failure_counts.pop(document_id, None)
                 return True

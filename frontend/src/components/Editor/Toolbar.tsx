@@ -9,6 +9,8 @@ import type { ConnectionStatus } from '../../types'
 
 const AVATAR_COLORS = ['#ef4444', '#3b82f6', '#22c55e', '#a855f7', '#f59e0b', '#06b6d4']
 
+type MobileViewMode = 'editor' | 'preview'
+
 interface ToolbarProps {
   title: string
   documentId: string
@@ -17,6 +19,9 @@ interface ToolbarProps {
   onToggleUserPanel?: () => void
   showUserPanel?: boolean
   onTitleChange?: (newTitle: string) => void
+  onOpenVersionHistory?: () => void
+  mobileViewMode?: MobileViewMode
+  onMobileViewModeChange?: (mode: MobileViewMode) => void
 }
 
 function ConnectionIndicator({
@@ -29,7 +34,7 @@ function ConnectionIndicator({
   const connected = status === 'connected' && isConnected
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="hidden sm:flex items-center gap-2">
       <div
         className={`w-2 h-2 rounded-full ${
           connected
@@ -46,7 +51,47 @@ function ConnectionIndicator({
   )
 }
 
-function UserAvatars({ onToggle, userCount }: { onToggle?: () => void; userCount: number }) {
+function MobileViewToggle({
+  mode,
+  onChange,
+}: {
+  mode: MobileViewMode
+  onChange: (mode: MobileViewMode) => void
+}) {
+  return (
+    <div className="flex md:hidden bg-gray-100 rounded-lg p-0.5">
+      <button
+        onClick={() => onChange('editor')}
+        className={`p-2 rounded-md transition-colors touch-target flex items-center justify-center ${
+          mode === 'editor'
+            ? 'bg-white text-gray-900 shadow-sm'
+            : 'text-gray-500 hover:text-gray-700'
+        }`}
+        title="Edit"
+      >
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+        </svg>
+      </button>
+      <button
+        onClick={() => onChange('preview')}
+        className={`p-2 rounded-md transition-colors touch-target flex items-center justify-center ${
+          mode === 'preview'
+            ? 'bg-white text-gray-900 shadow-sm'
+            : 'text-gray-500 hover:text-gray-700'
+        }`}
+        title="Preview"
+      >
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+        </svg>
+      </button>
+    </div>
+  )
+}
+
+function UserAvatars({ onToggle }: { onToggle?: () => void }) {
   const users = useDocumentStore((s) => s.users)
   const currentUser = useUserStore((s) => s.currentUser)
 
@@ -194,7 +239,7 @@ function EditableTitle({
         onBlur={handleSave}
         onKeyDown={handleKeyDown}
         disabled={isSaving}
-        className="text-lg font-medium text-gray-900 bg-gray-100 border border-gray-300 rounded px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent min-w-[200px]"
+        className="text-base md:text-lg font-semibold text-gray-900 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full max-w-[200px] md:max-w-[300px]"
         maxLength={255}
       />
     )
@@ -203,13 +248,13 @@ function EditableTitle({
   return (
     <button
       onClick={() => setIsEditing(true)}
-      className="text-lg font-medium text-gray-900 hover:bg-gray-100 rounded px-2 py-0.5 transition-colors group flex items-center gap-1"
+      className="text-base md:text-lg font-semibold text-gray-900 hover:bg-gray-50 rounded-lg px-2 py-1 transition-colors group flex items-center gap-1.5 min-w-0 truncate"
       title="Click to edit title"
     >
-      {title}
+      <span className="truncate">{title}</span>
       <svg
         xmlns="http://www.w3.org/2000/svg"
-        className="h-4 w-4 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity"
+        className="h-3.5 w-3.5 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 hidden md:block"
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"
@@ -232,17 +277,16 @@ export function Toolbar({
   isConnected,
   onToggleUserPanel,
   onTitleChange,
+  onOpenVersionHistory,
+  mobileViewMode = 'editor',
+  onMobileViewModeChange,
 }: ToolbarProps) {
-  const users = useDocumentStore((s) => s.users)
-  const currentUser = useUserStore((s) => s.currentUser)
-  const totalUsers = (currentUser ? 1 : 0) + users.length
-
   return (
-    <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 bg-white">
-      <div className="flex items-center gap-4">
+    <div className="flex items-center justify-between px-3 md:px-4 py-4 md:py-3 border-b border-gray-100 bg-white/95 backdrop-blur-sm safe-area-top">
+      <div className="flex items-center gap-3 md:gap-4 min-w-0 flex-1">
         <Link
           to="/"
-          className="text-gray-500 hover:text-gray-700 transition-colors"
+          className="text-gray-400 hover:text-gray-600 transition-colors touch-target flex items-center justify-center p-1 -ml-1 rounded-lg hover:bg-gray-100"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -255,7 +299,7 @@ export function Toolbar({
               strokeLinecap="round"
               strokeLinejoin="round"
               strokeWidth={2}
-              d="M10 19l-7-7m0 0l7-7m-7 7h18"
+              d="M15 19l-7-7 7-7"
             />
           </svg>
         </Link>
@@ -266,10 +310,29 @@ export function Toolbar({
         />
       </div>
 
-      <div className="flex items-center gap-4">
-        <UserAvatars onToggle={onToggleUserPanel} userCount={totalUsers} />
+      <div className="flex items-center gap-1.5 md:gap-3">
+        {/* Mobile View Toggle */}
+        {onMobileViewModeChange && (
+          <MobileViewToggle mode={mobileViewMode} onChange={onMobileViewModeChange} />
+        )}
+
+        {/* Version History Button - icon only on mobile */}
+        <button
+          onClick={onOpenVersionHistory}
+          className="flex items-center gap-1.5 p-2 md:px-3 md:py-1.5 text-sm text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors touch-target"
+          title="Version History"
+        >
+          <svg className="w-5 h-5 md:w-4 md:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span className="hidden md:inline">History</span>
+        </button>
+
+        <UserAvatars onToggle={onToggleUserPanel} />
         <ConnectionIndicator status={connectionStatus} isConnected={isConnected} />
-        <CurrentUserBadge />
+        <div className="hidden md:block">
+          <CurrentUserBadge />
+        </div>
       </div>
     </div>
   )

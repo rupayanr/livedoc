@@ -23,14 +23,14 @@ export function UserPanel({ isOpen, onClose }: UserPanelProps) {
         onClick={onClose}
       />
 
-      {/* Panel */}
-      <div className="fixed right-0 top-0 h-full w-80 bg-white shadow-xl z-50 flex flex-col animate-slide-in">
+      {/* Panel - full screen on mobile, side panel on desktop */}
+      <div className="fixed inset-0 md:inset-auto md:right-0 md:top-0 md:h-full md:w-80 bg-white shadow-xl z-50 flex flex-col animate-slide-up md:animate-slide-in safe-area-top safe-area-bottom">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
           <h2 className="font-semibold text-gray-900">Online Users</h2>
           <button
             onClick={onClose}
-            className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors touch-target flex items-center justify-center"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -39,7 +39,7 @@ export function UserPanel({ isOpen, onClose }: UserPanelProps) {
         </div>
 
         {/* User List */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 overflow-y-auto p-4 scroll-touch">
           {/* Current User */}
           {currentUser && (
             <div className="mb-4">

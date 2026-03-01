@@ -94,10 +94,21 @@ class RoomManager:
         room = self.rooms.get(document_id)
         return room is None or len(room.connections) == 0
 
+    def is_name_taken(self, document_id: uuid.UUID, name: str) -> bool:
+        """Check if a username is already taken in a room."""
+        room = self.rooms.get(document_id)
+        if room is None:
+            return False
+        return any(s.name.lower() == name.lower() for s in room.connections.values())
+
     async def join(
         self, document_id: uuid.UUID, websocket: WebSocket, name: str
     ) -> dict:
         room = await self._get_or_create_room(document_id)
+
+        # Check for duplicate username
+        if any(s.name.lower() == name.lower() for s in room.connections.values()):
+            raise ValueError(f"Username '{name}' is already taken in this document")
 
         session = UserSession(
             id=uuid.uuid4(),

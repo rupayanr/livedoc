@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import documents, websocket
+from app.api.routes import documents, versions, websocket
 from app.config import settings
 from app.core.persistence import persistence_manager
 from app.core.redis_pubsub import redis_pubsub
@@ -51,6 +51,7 @@ app.add_middleware(
 
 # REST API routes
 app.include_router(documents.router, prefix="/api/v1")
+app.include_router(versions.router, prefix="/api/v1")
 
 # WebSocket routes
 app.include_router(websocket.router, prefix="/api/v1")

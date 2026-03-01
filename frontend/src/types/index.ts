@@ -57,3 +57,24 @@ export interface CursorPayload {
 }
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected'
+
+// Version History Types
+export interface Version {
+  id: string
+  versionNumber: number
+  title: string
+  content: string
+  createdBy: string | null
+  snapshotType: 'auto' | 'manual'
+  createdAt: string
+}
+
+export interface VersionListItem {
+  id: string
+  versionNumber: number
+  title: string
+  createdBy: string | null
+  snapshotType: 'auto' | 'manual'
+  createdAt: string
+  contentPreview: string
+}

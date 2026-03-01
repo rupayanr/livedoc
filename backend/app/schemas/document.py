@@ -49,3 +49,40 @@ class SessionResponse(BaseModel):
     user_name: str
     user_color: str
     cursor_position: dict | None = None
+
+
+# Version History Schemas
+class VersionCreate(BaseModel):
+    """Request to create a manual version snapshot."""
+    name: str | None = None  # Optional name/description for the version
+
+
+class VersionResponse(BaseModel):
+    """Response for a document version."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    version_number: int
+    title: str
+    content: str
+    created_by: str | None
+    snapshot_type: str  # 'auto' or 'manual'
+    created_at: datetime
+
+
+class VersionListItem(BaseModel):
+    """List item for version history."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    version_number: int
+    title: str
+    created_by: str | None
+    snapshot_type: str
+    created_at: datetime
+    content_preview: str = ""  # First 100 chars of content
+
+
+class VersionRestoreRequest(BaseModel):
+    """Request to restore a specific version."""
+    pass  # No body needed, version ID comes from URL

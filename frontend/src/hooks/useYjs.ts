@@ -105,10 +105,12 @@ export function useYjs(documentId: string | null, userName: string, userColor?: 
     connection.provider.on('status', handleStatusChange)
 
     // Listen for awareness changes (users joining/leaving)
+    // Handler is defined here and properly cleaned up to prevent memory leaks
     const handleAwarenessChange = (changes: { added: number[]; removed: number[]; updated: number[] }) => {
       updateUsersFromAwareness(connection.provider, changes)
     }
-    connection.provider.awareness.on('change', handleAwarenessChange)
+    const awareness = connection.provider.awareness
+    awareness.on('change', handleAwarenessChange)
 
     // Initial users update (no changes object for initial load)
     updateUsersFromAwareness(connection.provider)
@@ -123,7 +125,7 @@ export function useYjs(documentId: string | null, userName: string, userColor?: 
 
     return () => {
       connection.provider.off('status', handleStatusChange)
-      connection.provider.awareness.off('change', handleAwarenessChange)
+      awareness.off('change', handleAwarenessChange)
       connection.ytext.unobserve(updateContent)
       connection.destroy()
       connectionRef.current = null

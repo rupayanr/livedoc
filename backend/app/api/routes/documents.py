@@ -60,3 +60,12 @@ async def delete_document(doc_id: uuid.UUID, db: DbSession) -> None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Document not found"
         )
+
+
+@router.get("/{doc_id}/check-username")
+async def check_username_availability(doc_id: uuid.UUID, name: str) -> dict:
+    """Check if a username is available in a document room."""
+    from app.core.room_manager import room_manager
+
+    is_taken = room_manager.is_name_taken(doc_id, name)
+    return {"available": not is_taken, "name": name}

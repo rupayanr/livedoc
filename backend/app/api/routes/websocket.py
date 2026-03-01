@@ -118,6 +118,12 @@ async def websocket_endpoint(
             await websocket.close(code=4004, reason="Document not found")
             return
 
+    # Check if username is already taken in this room
+    if room_manager.is_name_taken(document_id, name):
+        logger.warning(f"WebSocket connection rejected: username '{name}' already taken in document {document_id}")
+        await websocket.close(code=4009, reason="Username already taken")
+        return
+
     await websocket.accept()
     logger.info(f"WebSocket connected: user={name}, document={document_id}")
 
