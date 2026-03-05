@@ -218,9 +218,10 @@ async def handle_sync_message(
             state = await yjs_manager.get_state(document_id)
             update = state if state else b""
 
-        if update:
-            response = encode_sync_step_2(update)
-            await websocket.send_bytes(response)
+        # CRITICAL: Always send SYNC_STEP_2 response, even for empty documents
+        # Empty bytes b"" is falsy, but mobile clients hang if we don't respond
+        response = encode_sync_step_2(update if update else b"")
+        await websocket.send_bytes(response)
 
     elif sync_type == SyncMessageType.SYNC_STEP_2:
         # Client sent us their state (response to our sync step 1)

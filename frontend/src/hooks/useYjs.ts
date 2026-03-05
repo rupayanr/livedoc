@@ -10,6 +10,7 @@ interface UseYjsReturn {
   ytext: Y.Text | null
   provider: WebsocketProvider | null
   isConnected: boolean
+  isSynced: boolean
 }
 
 export function useYjs(documentId: string | null, userName: string, userColor?: string): UseYjsReturn {
@@ -17,6 +18,7 @@ export function useYjs(documentId: string | null, userName: string, userColor?: 
   const [ytext, setYtext] = useState<Y.Text | null>(null)
   const [provider, setProvider] = useState<WebsocketProvider | null>(null)
   const [isConnected, setIsConnected] = useState(false)
+  const [isSynced, setIsSynced] = useState(false)
 
   const setConnectionStatus = useDocumentStore((s) => s.setConnectionStatus)
   const setContent = useDocumentStore((s) => s.setContent)
@@ -28,14 +30,30 @@ export function useYjs(documentId: string | null, userName: string, userColor?: 
     (event: { status: string }) => {
       const connected = event.status === 'connected'
       setIsConnected(connected)
-      setConnectionStatus(connected ? 'connected' : 'connecting')
 
-      // Show toast only on initial connection
-      if (connected && !wasConnectedRef.current) {
-        toast.success('Connected to document', { id: 'connection-status' })
-        wasConnectedRef.current = true
-      } else if (!connected && wasConnectedRef.current) {
-        toast.error('Disconnected', { id: 'connection-status' })
+      // Don't set 'connected' status yet - wait for sync to complete
+      // This prevents mobile showing "connected" before data is synced
+      if (!connected) {
+        setConnectionStatus('connecting')
+        setIsSynced(false)
+        if (wasConnectedRef.current) {
+          toast.error('Disconnected', { id: 'connection-status' })
+        }
+      }
+    },
+    [setConnectionStatus]
+  )
+
+  const handleSynced = useCallback(
+    (synced: boolean) => {
+      setIsSynced(synced)
+      if (synced) {
+        setConnectionStatus('connected')
+        // Show toast only on initial sync
+        if (!wasConnectedRef.current) {
+          toast.success('Connected and synced', { id: 'connection-status' })
+          wasConnectedRef.current = true
+        }
       }
     },
     [setConnectionStatus]
@@ -104,6 +122,10 @@ export function useYjs(documentId: string | null, userName: string, userColor?: 
     // Listen for connection status
     connection.provider.on('status', handleStatusChange)
 
+    // Listen for Y.js sync completion - this is when data is actually ready
+    // CRITICAL: Mobile clients need this to know when sync is complete, not just connected
+    connection.provider.on('sync', handleSynced)
+
     // Listen for awareness changes (users joining/leaving)
     // Handler is defined here and properly cleaned up to prevent memory leaks
     const handleAwarenessChange = (changes: { added: number[]; removed: number[]; updated: number[] }) => {
@@ -123,10 +145,49 @@ export function useYjs(documentId: string | null, userName: string, userColor?: 
     connection.ytext.observe(updateContent)
     updateContent()
 
+    // Mobile reconnection handlers - force reconnect when app comes back to foreground
+    // On mobile, WebSocket can appear connected but be stale, so we force a full reconnect cycle
+    let lastHiddenTime = 0
+    const STALE_THRESHOLD_MS = 5000 // Consider connection stale after 5s in background
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        lastHiddenTime = Date.now()
+      } else if (document.visibilityState === 'visible') {
+        const timeInBackground = Date.now() - lastHiddenTime
+        // Force reconnect if we were in background for more than threshold
+        // This handles stale connections that still report as connected
+        if (timeInBackground > STALE_THRESHOLD_MS) {
+          // Reset sync state before reconnect - ensures UI shows "connecting" state
+          setIsSynced(false)
+          setConnectionStatus('connecting')
+          connection.provider.disconnect()
+          // Small delay to ensure clean disconnect before reconnecting
+          setTimeout(() => connection.provider.connect(), 100)
+        } else if (!connection.provider.wsconnected) {
+          connection.provider.connect()
+        }
+      }
+    }
+
+    const handleOnline = () => {
+      // Force reconnect when coming back online
+      setIsSynced(false)
+      setConnectionStatus('connecting')
+      connection.provider.disconnect()
+      setTimeout(() => connection.provider.connect(), 100)
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('online', handleOnline)
+
     return () => {
       connection.provider.off('status', handleStatusChange)
+      connection.provider.off('sync', handleSynced)
       awareness.off('change', handleAwarenessChange)
       connection.ytext.unobserve(updateContent)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('online', handleOnline)
       connection.destroy()
       connectionRef.current = null
       wasConnectedRef.current = false
@@ -134,10 +195,11 @@ export function useYjs(documentId: string | null, userName: string, userColor?: 
       setYtext(null)
       setProvider(null)
       setIsConnected(false)
+      setIsSynced(false)
       setConnectionStatus('disconnected')
       setUsers([])
     }
-  }, [documentId, userName, userColor, handleStatusChange, setConnectionStatus, setContent, setUsers, updateUsersFromAwareness])
+  }, [documentId, userName, userColor, handleStatusChange, handleSynced, setConnectionStatus, setContent, setUsers, updateUsersFromAwareness])
 
-  return { ytext, provider, isConnected }
+  return { ytext, provider, isConnected, isSynced }
 }

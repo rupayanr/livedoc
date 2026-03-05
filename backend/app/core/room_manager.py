@@ -197,12 +197,25 @@ class RoomManager:
         if room is None:
             return
 
-        for session in room.connections.values():
+        dead_sessions: list[uuid.UUID] = []
+
+        for session in list(room.connections.values()):
             if session.websocket != exclude:
                 try:
                     await session.websocket.send_bytes(data)
                 except Exception as e:
                     logger.warning(f"Failed to send bytes to {session.name}: {e}")
+                    dead_sessions.append(session.id)
+
+        # Clean up dead connections
+        for session_id in dead_sessions:
+            if session_id in room.connections:
+                session = room.connections.pop(session_id)
+                logger.info(f"Removed dead connection: {session.name}")
+                await self.broadcast_json(document_id, {
+                    "type": "user_left",
+                    "payload": {"id": str(session_id)}
+                })
 
     async def broadcast_json(
         self,
@@ -214,12 +227,21 @@ class RoomManager:
         if room is None:
             return
 
-        for session in room.connections.values():
+        dead_sessions: list[uuid.UUID] = []
+
+        for session in list(room.connections.values()):
             if session.websocket != exclude:
                 try:
                     await session.websocket.send_json(data)
                 except Exception as e:
                     logger.warning(f"Failed to send JSON to {session.name}: {e}")
+                    dead_sessions.append(session.id)
+
+        # Clean up dead connections (don't broadcast user_left to avoid recursion)
+        for session_id in dead_sessions:
+            if session_id in room.connections:
+                session = room.connections.pop(session_id)
+                logger.info(f"Removed dead connection: {session.name}")
 
     def get_users(self, document_id: uuid.UUID) -> list[dict]:
         room = self.rooms.get(document_id)

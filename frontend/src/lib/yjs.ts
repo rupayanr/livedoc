@@ -1,7 +1,18 @@
 import * as Y from 'yjs'
 import { WebsocketProvider } from 'y-websocket'
 
-const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000'
+function getWebSocketUrl(): string {
+  // Use environment variable if set, otherwise derive from current page URL
+  if (import.meta.env.VITE_WS_URL) {
+    return import.meta.env.VITE_WS_URL
+  }
+
+  // Dynamically determine WebSocket URL based on current page
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  const host = window.location.hostname
+  const port = '8000' // Backend port
+  return `${protocol}//${host}:${port}`
+}
 
 function generateColor(name: string): string {
   let hash = 0
@@ -10,6 +21,19 @@ function generateColor(name: string): string {
   }
   const hue = Math.abs(hash % 360)
   return `hsl(${hue}, 70%, 50%)`
+}
+
+/**
+ * Detect if running on iOS Safari.
+ * BroadcastChannel is not supported on iOS Safari, causing silent sync failures.
+ */
+function isIOSSafari(): boolean {
+  if (typeof navigator === 'undefined') return false
+  const ua = navigator.userAgent
+  const isIOS = /iPhone|iPad|iPod/.test(ua)
+  const isWebKit = /WebKit/.test(ua)
+  // Chrome on iOS also reports as WebKit, but we want to disable BC for all iOS
+  return isIOS && isWebKit
 }
 
 export interface YjsConnection {
@@ -28,10 +52,13 @@ export function createYjsConnection(
 
   // y-websocket appends the room name to the URL, so we use /api/v1/ws
   // and it becomes /api/v1/ws/{documentId}
-  const wsUrl = `${WS_URL}/api/v1/ws`
+  const wsUrl = `${getWebSocketUrl()}/api/v1/ws`
 
   const provider = new WebsocketProvider(wsUrl, documentId, ydoc, {
     params: { name: userName },
+    resyncInterval: 5000, // Resync every 5 seconds to catch missed updates
+    disableBc: isIOSSafari(), // Disable BroadcastChannel on iOS (not supported in Safari)
+    maxBackoffTime: 10000, // 10s max backoff for faster mobile reconnection
   })
 
   const ytext = ydoc.getText('content')

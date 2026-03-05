@@ -1,7 +1,10 @@
+import logging
 import uuid
 from typing import Any
 
 import y_py as Y
+
+logger = logging.getLogger(__name__)
 
 
 class YjsManager:
@@ -35,13 +38,25 @@ class YjsManager:
 
     async def apply_update(self, document_id: uuid.UUID, update: bytes) -> None:
         """Apply a Y.js update to the document, merging with existing state."""
-        doc = self._get_or_create_doc(document_id)
-        Y.apply_update(doc, update)
+        if not update:
+            return
+        try:
+            doc = self._get_or_create_doc(document_id)
+            Y.apply_update(doc, update)
+        except Exception as e:
+            logger.error(f"Failed to apply Y.js update for {document_id}: {e}")
+            raise
 
     async def set_state(self, document_id: uuid.UUID, state: bytes) -> None:
         """Set the Y.js state for a document (used when loading from DB)."""
-        doc = self._get_or_create_doc(document_id)
-        Y.apply_update(doc, state)
+        if not state:
+            return
+        try:
+            doc = self._get_or_create_doc(document_id)
+            Y.apply_update(doc, state)
+        except Exception as e:
+            logger.error(f"Failed to set Y.js state for {document_id}: {e}")
+            raise
 
     async def get_content_as_text(self, document_id: uuid.UUID) -> str:
         """Extract plain text content from the Y.js document."""

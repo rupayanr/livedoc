@@ -24,7 +24,11 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379"
 
     # CORS
-    cors_origins: list[str] = ["http://localhost:5173"]
+    cors_origins: list[str] = [
+        "http://localhost:5173",
+        "http://192.168.0.9:5173",
+        "http://192.168.0.9:4173",
+    ]
 
     # App
     debug: bool = False

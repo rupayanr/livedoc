@@ -59,10 +59,10 @@ function MobileViewToggle({
   onChange: (mode: MobileViewMode) => void
 }) {
   return (
-    <div className="flex md:hidden bg-gray-100 rounded-lg p-0.5">
+    <div className="flex md:hidden bg-gray-100 rounded-xl p-1 gap-1">
       <button
         onClick={() => onChange('editor')}
-        className={`p-2 rounded-md transition-colors touch-target flex items-center justify-center ${
+        className={`p-2.5 xs:px-3 xs:py-2 rounded-lg transition-colors touch-target flex items-center justify-center gap-1.5 ${
           mode === 'editor'
             ? 'bg-white text-gray-900 shadow-sm'
             : 'text-gray-500 hover:text-gray-700'
@@ -72,10 +72,11 @@ function MobileViewToggle({
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
         </svg>
+        <span className="hidden xs:inline text-sm font-medium">Edit</span>
       </button>
       <button
         onClick={() => onChange('preview')}
-        className={`p-2 rounded-md transition-colors touch-target flex items-center justify-center ${
+        className={`p-2.5 xs:px-3 xs:py-2 rounded-lg transition-colors touch-target flex items-center justify-center gap-1.5 ${
           mode === 'preview'
             ? 'bg-white text-gray-900 shadow-sm'
             : 'text-gray-500 hover:text-gray-700'
@@ -86,6 +87,7 @@ function MobileViewToggle({
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
         </svg>
+        <span className="hidden xs:inline text-sm font-medium">Preview</span>
       </button>
     </div>
   )
@@ -103,7 +105,7 @@ function UserAvatars({ onToggle }: { onToggle?: () => void }) {
   return (
     <button
       onClick={onToggle}
-      className="flex items-center gap-2 hover:bg-gray-100 rounded-lg px-2 py-1 transition-colors"
+      className="flex items-center gap-2 hover:bg-gray-100 rounded-lg p-2 md:px-2 md:py-1 transition-colors touch-target"
     >
       <div className="flex items-center -space-x-2">
         {allUsers.slice(0, 4).map((user, index) => (
@@ -310,7 +312,7 @@ export function Toolbar({
         />
       </div>
 
-      <div className="flex items-center gap-1.5 md:gap-3">
+      <div className="flex items-center gap-2 md:gap-3">
         {/* Mobile View Toggle */}
         {onMobileViewModeChange && (
           <MobileViewToggle mode={mobileViewMode} onChange={onMobileViewModeChange} />
