@@ -1,35 +1,50 @@
 import uuid
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, Request, status
+from pydantic import ValidationError
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
-from app.api.deps import DbSession
+from app.api.deps import CurrentUser, DbSession, OptionalUser
 from app.schemas.document import (
     DocumentCreate,
     DocumentListItem,
     DocumentResponse,
     DocumentUpdate,
+    UsernameParam,
+    MAX_USERNAME_LENGTH,
 )
 from app.services.document_service import DocumentService
 
 router = APIRouter(prefix="/documents", tags=["documents"])
+limiter = Limiter(key_func=get_remote_address)
 
 
 @router.post("", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
-async def create_document(data: DocumentCreate, db: DbSession) -> DocumentResponse:
+@limiter.limit("10/minute")
+async def create_document(
+    request: Request,
+    data: DocumentCreate,
+    db: DbSession,
+    user: CurrentUser,
+) -> DocumentResponse:
+    """Create a new document. Requires authentication."""
     service = DocumentService(db)
     document = await service.create_document(data)
     return DocumentResponse.model_validate(document)
 
 
 @router.get("", response_model=list[DocumentListItem])
-async def list_documents(db: DbSession) -> list[DocumentListItem]:
+@limiter.limit("60/minute")
+async def list_documents(request: Request, db: DbSession) -> list[DocumentListItem]:
     service = DocumentService(db)
     documents = await service.list_documents()
     return [DocumentListItem.model_validate(doc) for doc in documents]
 
 
 @router.get("/{doc_id}", response_model=DocumentResponse)
-async def get_document(doc_id: uuid.UUID, db: DbSession) -> DocumentResponse:
+@limiter.limit("60/minute")
+async def get_document(request: Request, doc_id: uuid.UUID, db: DbSession) -> DocumentResponse:
     service = DocumentService(db)
     document = await service.get_document(doc_id)
     if document is None:
@@ -40,9 +55,15 @@ async def get_document(doc_id: uuid.UUID, db: DbSession) -> DocumentResponse:
 
 
 @router.patch("/{doc_id}", response_model=DocumentResponse)
+@limiter.limit("10/minute")
 async def update_document(
-    doc_id: uuid.UUID, data: DocumentUpdate, db: DbSession
+    request: Request,
+    doc_id: uuid.UUID,
+    data: DocumentUpdate,
+    db: DbSession,
+    user: CurrentUser,
 ) -> DocumentResponse:
+    """Update a document. Requires authentication."""
     service = DocumentService(db)
     document = await service.update_document(doc_id, data)
     if document is None:
@@ -53,7 +74,14 @@ async def update_document(
 
 
 @router.delete("/{doc_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_document(doc_id: uuid.UUID, db: DbSession) -> None:
+@limiter.limit("10/minute")
+async def delete_document(
+    request: Request,
+    doc_id: uuid.UUID,
+    db: DbSession,
+    user: CurrentUser,
+) -> None:
+    """Delete a document. Requires authentication."""
     service = DocumentService(db)
     deleted = await service.delete_document(doc_id)
     if not deleted:
@@ -63,9 +91,24 @@ async def delete_document(doc_id: uuid.UUID, db: DbSession) -> None:
 
 
 @router.get("/{doc_id}/check-username")
-async def check_username_availability(doc_id: uuid.UUID, name: str) -> dict:
+@limiter.limit("60/minute")
+async def check_username_availability(
+    request: Request,
+    doc_id: uuid.UUID,
+    name: str = Query(..., max_length=MAX_USERNAME_LENGTH),
+) -> dict:
     """Check if a username is available in a document room."""
     from app.core.room_manager import room_manager
+
+    # Validate username format
+    try:
+        validated = UsernameParam(name=name)
+        name = validated.name
+    except ValidationError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid username format"
+        )
 
     is_taken = room_manager.is_name_taken(doc_id, name)
     return {"available": not is_taken, "name": name}

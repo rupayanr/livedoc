@@ -1,5 +1,6 @@
 import * as Y from 'yjs'
 import { WebsocketProvider } from 'y-websocket'
+import { getAuthToken } from './api'
 
 function getWebSocketUrl(): string {
   // Use environment variable if set, otherwise derive from current page URL
@@ -54,8 +55,15 @@ export function createYjsConnection(
   // and it becomes /api/v1/ws/{documentId}
   const wsUrl = `${getWebSocketUrl()}/api/v1/ws`
 
+  // Build params including optional auth token
+  const params: Record<string, string> = { name: userName }
+  const token = getAuthToken()
+  if (token) {
+    params.token = token
+  }
+
   const provider = new WebsocketProvider(wsUrl, documentId, ydoc, {
-    params: { name: userName },
+    params,
     resyncInterval: 5000, // Resync every 5 seconds to catch missed updates
     disableBc: isIOSSafari(), // Disable BroadcastChannel on iOS (not supported in Safari)
     maxBackoffTime: 10000, // 10s max backoff for faster mobile reconnection

@@ -1,13 +1,20 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
-from app.api.routes import documents, versions, websocket
+from app.api.routes import auth, documents, versions, websocket
 from app.config import settings
 from app.core.persistence import persistence_manager
 from app.core.redis_pubsub import redis_pubsub
+
+# Rate limiter instance (used by route decorators)
+limiter = Limiter(key_func=get_remote_address)
 
 # Configure logging
 logging.basicConfig(
@@ -40,6 +47,19 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Rate limiting
+app.state.limiter = limiter
+
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+    logger.warning(f"Rate limit exceeded for {get_remote_address(request)}")
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "Rate limit exceeded. Please slow down."},
+    )
+
+
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -50,6 +70,7 @@ app.add_middleware(
 )
 
 # REST API routes
+app.include_router(auth.router, prefix="/api/v1")
 app.include_router(documents.router, prefix="/api/v1")
 app.include_router(versions.router, prefix="/api/v1")
 

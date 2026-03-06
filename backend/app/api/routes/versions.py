@@ -1,7 +1,9 @@
 import logging
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
@@ -11,10 +13,13 @@ from app.schemas.document import VersionCreate, VersionListItem, VersionResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+limiter = Limiter(key_func=get_remote_address)
 
 
 @router.get("/documents/{document_id}/versions", response_model=list[VersionListItem])
+@limiter.limit("60/minute")
 async def list_versions(
+    request: Request,
     document_id: uuid.UUID,
     limit: int = Query(default=50, le=100),
     offset: int = Query(default=0, ge=0),
@@ -44,7 +49,9 @@ async def list_versions(
 
 
 @router.get("/documents/{document_id}/versions/count")
+@limiter.limit("60/minute")
 async def get_version_count(
+    request: Request,
     document_id: uuid.UUID,
     session: AsyncSession = Depends(get_db),
 ) -> dict[str, int]:
@@ -60,7 +67,9 @@ async def get_version_count(
 
 
 @router.get("/documents/{document_id}/versions/{version_id}", response_model=VersionResponse)
+@limiter.limit("60/minute")
 async def get_version(
+    request: Request,
     document_id: uuid.UUID,
     version_id: uuid.UUID,
     session: AsyncSession = Depends(get_db),
@@ -80,7 +89,9 @@ async def get_version(
 
 
 @router.post("/documents/{document_id}/versions", response_model=VersionResponse, status_code=201)
+@limiter.limit("10/minute")
 async def create_version(
+    request: Request,
     document_id: uuid.UUID,
     data: VersionCreate | None = None,
     user_name: str = Query(default=None, description="Name of user creating the snapshot"),
@@ -108,7 +119,9 @@ async def create_version(
 
 
 @router.post("/documents/{document_id}/versions/{version_id}/restore", response_model=VersionResponse)
+@limiter.limit("10/minute")
 async def restore_version(
+    request: Request,
     document_id: uuid.UUID,
     version_id: uuid.UUID,
     user_name: str = Query(default=None, description="Name of user restoring the version"),

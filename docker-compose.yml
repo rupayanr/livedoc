@@ -20,7 +20,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/livedoc
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-livedoc}
       - REDIS_URL=redis://redis:6379
       - CORS_ORIGINS=["http://localhost:5173"]
     depends_on:
@@ -35,9 +35,9 @@ services:
   db:
     image: postgres:15-alpine
     environment:
-      POSTGRES_DB: livedoc
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-livedoc}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     ports:
       - "5432:5432"
     volumes:

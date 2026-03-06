@@ -78,24 +78,19 @@ class RoomManager:
                 self._locks[document_id] = asyncio.Lock()
             return self._locks[document_id]
 
-    async def _get_or_create_room(self, document_id: uuid.UUID) -> Room:
-        """Get or create a room with proper locking to prevent race conditions."""
-        lock = await self._get_lock(document_id)
-        async with lock:
-            if document_id not in self.rooms:
-                self.rooms[document_id] = Room(document_id=document_id)
-                logger.info(f"Room created for document {document_id}")
-                if self._on_room_created:
-                    await self._on_room_created(document_id)
-            return self.rooms[document_id]
-
     def is_room_empty(self, document_id: uuid.UUID) -> bool:
         """Check if a room has no connections."""
         room = self.rooms.get(document_id)
         return room is None or len(room.connections) == 0
 
     def is_name_taken(self, document_id: uuid.UUID, name: str) -> bool:
-        """Check if a username is already taken in a room."""
+        """
+        Check if a username is already taken in a room.
+
+        WARNING: This is a non-atomic check. For thread-safe username validation,
+        use join() which performs an atomic check-and-add operation.
+        This method is only for UI hints (e.g., showing availability before attempt).
+        """
         room = self.rooms.get(document_id)
         if room is None:
             return False
@@ -104,21 +99,44 @@ class RoomManager:
     async def join(
         self, document_id: uuid.UUID, websocket: WebSocket, name: str
     ) -> dict:
-        room = await self._get_or_create_room(document_id)
+        """
+        Join a room with atomic username check.
 
-        # Check for duplicate username
-        if any(s.name.lower() == name.lower() for s in room.connections.values()):
-            raise ValueError(f"Username '{name}' is already taken in this document")
+        This method acquires a lock for the entire operation to prevent
+        TOCTOU race conditions where two users could claim the same name.
 
-        session = UserSession(
-            id=uuid.uuid4(),
-            name=name,
-            color=generate_color(name),
-            websocket=websocket,
-        )
-        room.connections[session.id] = session
+        Raises:
+            ValueError: If the username is already taken in this room.
+        """
+        lock = await self._get_lock(document_id)
 
-        # Persist session to database
+        async with lock:
+            # Get or create room within the lock
+            is_new_room = document_id not in self.rooms
+            if is_new_room:
+                self.rooms[document_id] = Room(document_id=document_id)
+                logger.info(f"Room created for document {document_id}")
+
+            room = self.rooms[document_id]
+
+            # Atomic username check - this happens inside the lock
+            if any(s.name.lower() == name.lower() for s in room.connections.values()):
+                raise ValueError(f"Username '{name}' is already taken in this document")
+
+            # Create and add session while still holding the lock
+            session = UserSession(
+                id=uuid.uuid4(),
+                name=name,
+                color=generate_color(name),
+                websocket=websocket,
+            )
+            room.connections[session.id] = session
+
+        # Room lifecycle callback (outside lock to avoid deadlock)
+        if is_new_room and self._on_room_created:
+            await self._on_room_created(document_id)
+
+        # Persist session to database (outside lock)
         try:
             async with self._get_db_session() as db:
                 repo = SessionRepository(db)

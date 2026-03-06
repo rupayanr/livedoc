@@ -1,17 +1,22 @@
 import json
 import logging
+import re
 import time
 import uuid
 from collections import defaultdict
 from enum import IntEnum
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from pydantic import ValidationError
 
 from app.api.deps import async_session_maker
+from app.core.auth import session_store
 from app.core.persistence import persistence_manager
 from app.core.room_manager import room_manager
+from app.core.security_logger import security_logger
 from app.core.yjs_manager import yjs_manager
 from app.repositories.document_repo import DocumentRepository
+from app.schemas.document import UsernameParam, MAX_USERNAME_LENGTH
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -19,7 +24,69 @@ logger = logging.getLogger(__name__)
 # Rate limiting configuration
 RATE_LIMIT_WINDOW = 1.0  # seconds
 RATE_LIMIT_MAX_MESSAGES = 100  # max messages per window
-_rate_limit_data: dict[str, dict] = defaultdict(lambda: {"count": 0, "window_start": 0.0})
+RATE_LIMIT_MAX_ENTRIES = 10_000  # Maximum clients to track
+
+
+class LRURateLimiter:
+    """LRU-bounded rate limiter to prevent memory exhaustion."""
+
+    def __init__(self, max_entries: int = RATE_LIMIT_MAX_ENTRIES):
+        self._data: dict[str, dict] = {}
+        self._max_entries = max_entries
+        self._cleanup_counter = 0
+        self._cleanup_interval = 100  # Cleanup every N checks
+
+    def check(self, client_id: str) -> bool:
+        """Check if client is within rate limit. Returns True if allowed."""
+        now = time.time()
+
+        # Periodic cleanup of stale entries
+        self._cleanup_counter += 1
+        if self._cleanup_counter >= self._cleanup_interval:
+            self._cleanup_stale(now)
+            self._cleanup_counter = 0
+
+        # Evict oldest if at capacity
+        if client_id not in self._data and len(self._data) >= self._max_entries:
+            self._evict_oldest()
+
+        if client_id not in self._data:
+            self._data[client_id] = {"count": 1, "window_start": now}
+            return True
+
+        data = self._data[client_id]
+
+        if now - data["window_start"] > RATE_LIMIT_WINDOW:
+            # Reset window
+            data["count"] = 1
+            data["window_start"] = now
+            return True
+
+        data["count"] += 1
+        return data["count"] <= RATE_LIMIT_MAX_MESSAGES
+
+    def remove(self, client_id: str) -> None:
+        """Remove a client from tracking."""
+        self._data.pop(client_id, None)
+
+    def _cleanup_stale(self, now: float) -> None:
+        """Remove entries with expired windows."""
+        stale_keys = [
+            k for k, v in self._data.items()
+            if now - v["window_start"] > RATE_LIMIT_WINDOW * 10
+        ]
+        for k in stale_keys:
+            del self._data[k]
+
+    def _evict_oldest(self) -> None:
+        """Evict the oldest entry by window_start time."""
+        if not self._data:
+            return
+        oldest_key = min(self._data.keys(), key=lambda k: self._data[k]["window_start"])
+        del self._data[oldest_key]
+
+
+_rate_limiter = LRURateLimiter()
 
 
 class MessageType(IntEnum):
@@ -65,17 +132,7 @@ room_manager.set_callbacks(
 
 def check_rate_limit(client_id: str) -> bool:
     """Check if client has exceeded rate limit. Returns True if allowed."""
-    now = time.time()
-    data = _rate_limit_data[client_id]
-
-    if now - data["window_start"] > RATE_LIMIT_WINDOW:
-        # Reset window
-        data["count"] = 1
-        data["window_start"] = now
-        return True
-
-    data["count"] += 1
-    return data["count"] <= RATE_LIMIT_MAX_MESSAGES
+    return _rate_limiter.check(client_id)
 
 
 def validate_cursor_position(position: dict | None) -> bool:
@@ -108,26 +165,65 @@ async def websocket_endpoint(
     websocket: WebSocket,
     document_id: uuid.UUID,
     name: str = "Anonymous",
+    token: str | None = None,
 ) -> None:
+    # Get client IP for logging
+    client_ip = None
+    if websocket.client:
+        client_ip = websocket.client.host
+
+    # If token provided, validate and use session username
+    if token:
+        session = session_store.get_session(token)
+        if session:
+            name = session.user_name
+            logger.debug(f"WebSocket using authenticated session for {name}")
+
+    # Validate username
+    try:
+        validated = UsernameParam(name=name)
+        name = validated.name
+    except ValidationError:
+        security_logger.websocket_rejected(
+            reason="invalid_username",
+            document_id=str(document_id),
+            user_name=name[:50],
+            client_ip=client_ip,
+        )
+        await websocket.close(code=4003, reason="Invalid username")
+        return
+
     # Verify document exists before accepting connection
     async with async_session_maker() as session:
         repo = DocumentRepository(session)
         doc = await repo.get(document_id)
         if doc is None:
-            logger.warning(f"WebSocket connection rejected: document {document_id} not found")
+            security_logger.websocket_rejected(
+                reason="document_not_found",
+                document_id=str(document_id),
+                user_name=name,
+                client_ip=client_ip,
+            )
             await websocket.close(code=4004, reason="Document not found")
             return
 
-    # Check if username is already taken in this room
-    if room_manager.is_name_taken(document_id, name):
-        logger.warning(f"WebSocket connection rejected: username '{name}' already taken in document {document_id}")
+    await websocket.accept()
+
+    # Atomic username check and join
+    try:
+        user_session = await room_manager.join(document_id, websocket, name)
+    except ValueError:
+        # Username was taken (atomic check inside join())
+        security_logger.websocket_rejected(
+            reason="username_taken",
+            document_id=str(document_id),
+            user_name=name,
+            client_ip=client_ip,
+        )
         await websocket.close(code=4009, reason="Username already taken")
         return
 
-    await websocket.accept()
     logger.info(f"WebSocket connected: user={name}, document={document_id}")
-
-    user_session = await room_manager.join(document_id, websocket, name)
     client_id = str(user_session["id"])
 
     try:
@@ -137,7 +233,10 @@ async def websocket_endpoint(
 
                 # Rate limiting
                 if not check_rate_limit(client_id):
-                    logger.warning(f"Rate limit exceeded for client {client_id}")
+                    security_logger.rate_limit_exceeded(
+                        endpoint="websocket",
+                        client_ip=client_ip,
+                    )
                     await websocket.send_json({
                         "type": "error",
                         "payload": {"message": "Rate limit exceeded"}
@@ -172,7 +271,7 @@ async def websocket_endpoint(
         await room_manager.leave(document_id, user_session)
     finally:
         # Clean up rate limit data
-        _rate_limit_data.pop(client_id, None)
+        _rate_limiter.remove(client_id)
 
 
 async def handle_binary_message(

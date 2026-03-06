@@ -2,6 +2,9 @@ import type { Document, DocumentListItem, Version, VersionListItem } from '../ty
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
+// Auth token storage key
+const AUTH_TOKEN_KEY = 'livedoc-auth-token'
+
 // Transform snake_case API response to camelCase
 function snakeToCamel(obj: Record<string, unknown>): Record<string, unknown> {
   const result: Record<string, unknown> = {}
@@ -31,16 +34,51 @@ class ApiError extends Error {
   }
 }
 
+// Get stored auth token
+export function getAuthToken(): string | null {
+  try {
+    return localStorage.getItem(AUTH_TOKEN_KEY)
+  } catch {
+    return null
+  }
+}
+
+// Set auth token
+export function setAuthToken(token: string): void {
+  try {
+    localStorage.setItem(AUTH_TOKEN_KEY, token)
+  } catch {
+    // Silent fail for private browsing
+  }
+}
+
+// Clear auth token
+export function clearAuthToken(): void {
+  try {
+    localStorage.removeItem(AUTH_TOKEN_KEY)
+  } catch {
+    // Silent fail
+  }
+}
+
 async function fetchApi<T>(
   endpoint: string,
-  options?: RequestInit
+  options?: RequestInit & { requireAuth?: boolean }
 ): Promise<T> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options?.headers as Record<string, string>),
+  }
+
+  // Add auth header if token exists
+  const token = getAuthToken()
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+
   const response = await fetch(`${API_URL}${endpoint}`, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    },
+    headers,
   })
 
   if (!response.ok) {
@@ -55,6 +93,32 @@ async function fetchApi<T>(
 }
 
 export const api = {
+  auth: {
+    login: async (name: string): Promise<{ token: string; userName: string }> => {
+      const response = await fetchApi<{ token: string; user_name: string }>('/api/v1/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ name }),
+      })
+      // Store the token
+      setAuthToken(response.token)
+      return { token: response.token, userName: response.user_name }
+    },
+
+    logout: async (): Promise<void> => {
+      try {
+        await fetchApi<{ success: boolean }>('/api/v1/auth/logout', {
+          method: 'POST',
+        })
+      } finally {
+        clearAuthToken()
+      }
+    },
+
+    isAuthenticated: (): boolean => {
+      return getAuthToken() !== null
+    },
+  },
+
   documents: {
     list: (): Promise<DocumentListItem[]> =>
       fetchApi<DocumentListItem[]>('/api/v1/documents'),
