@@ -12,6 +12,20 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.api.deps import get_db
 from app.models.document import Base, Document, Session as SessionModel
 
+# Disable rate limiting for all tests by mocking the limiter
+from unittest.mock import patch
+
+# Patch the limiter to be a no-op before importing the app routes
+def noop_limit(*args, **kwargs):
+    """No-op rate limit decorator that just returns the function unchanged."""
+    def decorator(func):
+        return func
+    return decorator
+
+# Apply the patch to all limiter instances
+import slowapi
+slowapi.Limiter.limit = noop_limit
+
 
 # Register UUID adapter for SQLite
 sqlite3.register_adapter(uuid.UUID, lambda u: str(u))
@@ -93,6 +107,37 @@ async def client(test_db: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+
+    # Clean up
+    app.dependency_overrides.clear()
+    async with test_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+
+
+@pytest_asyncio.fixture
+async def auth_client(test_db: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
+    """Create an authenticated async test client."""
+    from app.main import app
+
+    # Override database dependency
+    app.dependency_overrides[get_db] = override_get_db
+
+    # Create tables for this test
+    async with test_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        # Login to get auth token
+        login_response = await ac.post(
+            "/api/v1/auth/login",
+            json={"name": "TestUser"},
+        )
+        token = login_response.json()["token"]
+
+        # Set default auth header
+        ac.headers["Authorization"] = f"Bearer {token}"
         yield ac
 
     # Clean up
