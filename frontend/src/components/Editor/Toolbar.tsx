@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import Avatar from 'boring-avatars'
@@ -7,7 +7,8 @@ import { useDocumentStore } from '../../stores/documentStore'
 import { useUserStore } from '../../stores/userStore'
 import type { ConnectionStatus } from '../../types'
 
-const AVATAR_COLORS = ['#ef4444', '#3b82f6', '#22c55e', '#a855f7', '#f59e0b', '#06b6d4']
+// Memoized outside component to prevent re-creation
+const AVATAR_COLORS: string[] = ['#ef4444', '#3b82f6', '#22c55e', '#a855f7', '#f59e0b', '#06b6d4']
 
 type MobileViewMode = 'editor' | 'preview'
 
@@ -97,10 +98,12 @@ function UserAvatars({ onToggle }: { onToggle?: () => void }) {
   const users = useDocumentStore((s) => s.users)
   const currentUser = useUserStore((s) => s.currentUser)
 
-  // Combine current user with remote users for display
-  const allUsers = currentUser
-    ? [{ id: 'me', name: currentUser.name, color: currentUser.color, isMe: true }, ...users]
-    : users
+  // Memoize combined users list to prevent unnecessary re-renders
+  const allUsers = useMemo(() => {
+    return currentUser
+      ? [{ id: 'me', name: currentUser.name, color: currentUser.color, isMe: true }, ...users]
+      : users
+  }, [currentUser, users])
 
   return (
     <button

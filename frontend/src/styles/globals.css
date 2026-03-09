@@ -226,6 +226,34 @@ body {
   @apply bg-transparent p-0;
 }
 
+/* Ensure minimum touch target for markdown links on mobile */
+@media screen and (max-width: 767px) {
+  .markdown-preview a {
+    display: inline-block;
+    min-height: 44px;
+    line-height: 44px;
+    padding: 0 4px;
+    margin: -11px -4px;
+  }
+}
+
+/* Text truncation utility for long content */
+.truncate-multiline {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Prevent horizontal overflow on small screens */
+@media screen and (max-width: 320px) {
+  .overflow-safe {
+    max-width: 100%;
+    word-break: break-word;
+    overflow-wrap: break-word;
+  }
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 8px;

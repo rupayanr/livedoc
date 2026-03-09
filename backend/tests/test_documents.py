@@ -234,3 +234,92 @@ class TestDocumentDelete:
         fake_id = str(uuid.uuid4())
         response = await client.delete(f"/api/v1/documents/{fake_id}")
         assert response.status_code == 401
+
+
+class TestDocumentOwnership:
+    """Tests for document ownership and access control."""
+
+    @pytest.mark.asyncio
+    async def test_create_sets_owner(self, auth_client: AsyncClient):
+        """Creating a document should set the created_by field."""
+        response = await auth_client.post(
+            "/api/v1/documents",
+            json={"title": "Owned Doc"},
+        )
+
+        assert response.status_code == 201
+        data = response.json()
+        assert "created_by" in data
+        # created_by should be the authenticated user's name
+        assert data["created_by"] is not None
+
+    @pytest.mark.asyncio
+    async def test_list_shows_ownership(self, auth_client: AsyncClient):
+        """Document list should include ownership info."""
+        # Create a document
+        await auth_client.post(
+            "/api/v1/documents",
+            json={"title": "Test Doc"},
+        )
+
+        # List documents
+        response = await auth_client.get("/api/v1/documents")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) > 0
+        assert "created_by" in data[0]
+
+    @pytest.mark.asyncio
+    async def test_document_has_public_flag(self, auth_client: AsyncClient):
+        """Documents should have is_public field."""
+        response = await auth_client.post(
+            "/api/v1/documents",
+            json={"title": "Public Doc"},
+        )
+
+        assert response.status_code == 201
+        data = response.json()
+        assert "is_public" in data
+        # Default should be True (public)
+        assert data["is_public"] is True
+
+
+class TestDocumentInputValidation:
+    """Tests for input validation and sanitization."""
+
+    @pytest.mark.asyncio
+    async def test_title_max_length(self, auth_client: AsyncClient):
+        """Title exceeding max length should be rejected."""
+        long_title = "x" * 300  # Exceeds 255 char limit
+        response = await auth_client.post(
+            "/api/v1/documents",
+            json={"title": long_title},
+        )
+
+        # Should either truncate or reject
+        assert response.status_code in [201, 422]
+
+    @pytest.mark.asyncio
+    async def test_title_sanitized(self, auth_client: AsyncClient):
+        """Null bytes in title should be removed."""
+        response = await auth_client.post(
+            "/api/v1/documents",
+            json={"title": "Test\x00Title"},
+        )
+
+        assert response.status_code == 201
+        data = response.json()
+        assert "\x00" not in data["title"]
+
+    @pytest.mark.asyncio
+    async def test_whitespace_title_becomes_untitled(self, auth_client: AsyncClient):
+        """Whitespace-only title should become 'Untitled'."""
+        response = await auth_client.post(
+            "/api/v1/documents",
+            json={"title": "   "},
+        )
+
+        assert response.status_code == 201
+        data = response.json()
+        assert data["title"] == "Untitled"

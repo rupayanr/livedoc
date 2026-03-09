@@ -137,13 +137,24 @@ export function useYjs(documentId: string | null, userName: string, userColor?: 
     // Initial users update (no changes object for initial load)
     updateUsersFromAwareness(connection.provider)
 
-    // Sync content to store for preview
+    // Sync content to store for preview (with debouncing)
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null
+    const DEBOUNCE_MS = 100 // Debounce content updates for better performance
+
     const updateContent = () => {
-      setContent(connection.ytext.toString())
+      // Cancel any pending update
+      if (debounceTimer) {
+        clearTimeout(debounceTimer)
+      }
+      // Schedule debounced update
+      debounceTimer = setTimeout(() => {
+        setContent(connection.ytext.toString())
+      }, DEBOUNCE_MS)
     }
 
+    // Immediate update for initial content
+    setContent(connection.ytext.toString())
     connection.ytext.observe(updateContent)
-    updateContent()
 
     // Mobile reconnection handlers - force reconnect when app comes back to foreground
     // On mobile, WebSocket can appear connected but be stale, so we force a full reconnect cycle
@@ -182,6 +193,10 @@ export function useYjs(documentId: string | null, userName: string, userColor?: 
     window.addEventListener('online', handleOnline)
 
     return () => {
+      // Clear debounce timer
+      if (debounceTimer) {
+        clearTimeout(debounceTimer)
+      }
       connection.provider.off('status', handleStatusChange)
       connection.provider.off('sync', handleSynced)
       awareness.off('change', handleAwarenessChange)

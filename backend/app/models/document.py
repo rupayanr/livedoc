@@ -19,6 +19,8 @@ class Document(Base):
     title: Mapped[str] = mapped_column(String(255), nullable=False, default="Untitled")
     content: Mapped[str] = mapped_column(Text, nullable=False, default="")
     y_state: Mapped[bytes | None] = mapped_column(BYTEA, nullable=True)
+    created_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    is_public: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

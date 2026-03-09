@@ -141,6 +141,24 @@ class SecurityLogger:
             details={"reason": reason},
         )
 
+    def log_security_event(
+        self,
+        event_name: str,
+        client_ip: str | None = None,
+        user_name: str | None = None,
+        document_id: str | None = None,
+        **kwargs: Any,
+    ) -> None:
+        """Log a generic security event with arbitrary details."""
+        self.log(
+            SecurityEvent.SUSPICIOUS_ACTIVITY,
+            f"Security event: {event_name}",
+            client_ip=client_ip,
+            user_name=user_name,
+            document_id=document_id,
+            details={"event_name": event_name, **kwargs},
+        )
+
 
 # Global security logger instance
 security_logger = SecurityLogger()

@@ -89,6 +89,8 @@ class DocumentResponse(BaseModel):
     id: uuid.UUID
     title: str
     content: str
+    created_by: str | None = None
+    is_public: bool = True
     created_at: datetime
     updated_at: datetime
 
@@ -98,6 +100,8 @@ class DocumentListItem(BaseModel):
 
     id: uuid.UUID
     title: str
+    created_by: str | None = None
+    is_public: bool = True
     updated_at: datetime
 
 

@@ -7,6 +7,8 @@ from fastapi.responses import JSONResponse
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.types import ASGIApp
 
 from app.api.routes import auth, documents, versions, websocket
 from app.config import settings
@@ -15,6 +17,25 @@ from app.core.redis_pubsub import redis_pubsub
 
 # Rate limiter instance (used by route decorators)
 limiter = Limiter(key_func=get_remote_address)
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Add security headers to all responses."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        super().__init__(app)
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+
+        # Security headers
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+
+        return response
 
 # Configure logging
 logging.basicConfig(
@@ -59,6 +80,9 @@ async def rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONRe
         content={"detail": "Rate limit exceeded. Please slow down."},
     )
 
+
+# Security headers middleware (added first, runs last)
+app.add_middleware(SecurityHeadersMiddleware)
 
 # CORS middleware
 app.add_middleware(

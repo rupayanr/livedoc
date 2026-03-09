@@ -1,8 +1,29 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import mermaid from 'mermaid'
 
 type Theme = 'dark' | 'light'
+
+/**
+ * Safely format text with bold markers (**text**) without using dangerouslySetInnerHTML.
+ * This prevents XSS vulnerabilities by using React elements instead of innerHTML.
+ */
+function formatAnswer(text: string, theme: Theme): ReactNode[] {
+  const parts = text.split(/(\*\*.*?\*\*)/g)
+  const boldClass = theme === 'dark' ? 'text-green-400' : 'text-green-600'
+
+  return parts.map((part, index) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      const boldText = part.slice(2, -2)
+      return (
+        <strong key={index} className={boldClass}>
+          {boldText}
+        </strong>
+      )
+    }
+    return <span key={index}>{part}</span>
+  })
+}
 
 export function Architecture() {
   const [theme, setTheme] = useState<Theme>(() => {
@@ -636,11 +657,9 @@ export function Architecture() {
                   </span>
                   {item.q}
                 </div>
-                <div className={`pl-10 ${t.textSecondary} leading-relaxed`}
-                  dangerouslySetInnerHTML={{
-                    __html: item.a.replace(/\*\*(.*?)\*\*/g, `<strong class="${theme === 'dark' ? 'text-green-400' : 'text-green-600'}">$1</strong>`)
-                  }}
-                />
+                <div className={`pl-10 ${t.textSecondary} leading-relaxed`}>
+                  {formatAnswer(item.a, theme)}
+                </div>
               </div>
             ))}
           </div>

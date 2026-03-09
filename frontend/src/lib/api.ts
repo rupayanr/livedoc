@@ -61,9 +61,12 @@ export function clearAuthToken(): void {
   }
 }
 
+// Default request timeout in milliseconds
+const DEFAULT_TIMEOUT = 30000
+
 async function fetchApi<T>(
   endpoint: string,
-  options?: RequestInit & { requireAuth?: boolean }
+  options?: RequestInit & { requireAuth?: boolean; timeout?: number }
 ): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -76,20 +79,38 @@ async function fetchApi<T>(
     headers['Authorization'] = `Bearer ${token}`
   }
 
-  const response = await fetch(`${API_URL}${endpoint}`, {
-    ...options,
-    headers,
-  })
+  // Create AbortController for timeout and cancellation
+  const controller = new AbortController()
+  const timeout = options?.timeout ?? DEFAULT_TIMEOUT
 
-  if (!response.ok) {
-    throw new ApiError(response.status, `API error: ${response.statusText}`)
+  const timeoutId = setTimeout(() => {
+    controller.abort()
+  }, timeout)
+
+  try {
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      ...options,
+      headers,
+      signal: options?.signal ?? controller.signal,
+    })
+
+    if (!response.ok) {
+      throw new ApiError(response.status, `API error: ${response.statusText}`)
+    }
+
+    if (response.status === 204) {
+      return undefined as T
+    }
+
+    return response.json()
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new ApiError(408, 'Request timeout')
+    }
+    throw error
+  } finally {
+    clearTimeout(timeoutId)
   }
-
-  if (response.status === 204) {
-    return undefined as T
-  }
-
-  return response.json()
 }
 
 export const api = {

@@ -30,15 +30,21 @@ async def create_document(
 ) -> DocumentResponse:
     """Create a new document. Requires authentication."""
     service = DocumentService(db)
-    document = await service.create_document(data)
+    document = await service.create_document(data, created_by=user.user_name)
     return DocumentResponse.model_validate(document)
 
 
 @router.get("", response_model=list[DocumentListItem])
 @limiter.limit("60/minute")
-async def list_documents(request: Request, db: DbSession) -> list[DocumentListItem]:
+async def list_documents(
+    request: Request,
+    db: DbSession,
+    user: OptionalUser,
+) -> list[DocumentListItem]:
+    """List accessible documents. Shows public docs + user's own docs if authenticated."""
     service = DocumentService(db)
-    documents = await service.list_documents()
+    user_name = user.user_name if user else None
+    documents = await service.list_documents(user_name)
     return [DocumentListItem.model_validate(doc) for doc in documents]
 
 
@@ -63,9 +69,15 @@ async def update_document(
     db: DbSession,
     user: CurrentUser,
 ) -> DocumentResponse:
-    """Update a document. Requires authentication."""
+    """Update a document. Requires authentication and ownership."""
     service = DocumentService(db)
-    document = await service.update_document(doc_id, data)
+    try:
+        document = await service.update_document(doc_id, data, user_name=user.user_name)
+    except PermissionError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to modify this document"
+        )
     if document is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Document not found"
@@ -81,9 +93,15 @@ async def delete_document(
     db: DbSession,
     user: CurrentUser,
 ) -> None:
-    """Delete a document. Requires authentication."""
+    """Delete a document. Requires authentication and ownership."""
     service = DocumentService(db)
-    deleted = await service.delete_document(doc_id)
+    try:
+        deleted = await service.delete_document(doc_id, user_name=user.user_name)
+    except PermissionError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to delete this document"
+        )
     if not deleted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Document not found"

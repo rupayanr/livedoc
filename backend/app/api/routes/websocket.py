@@ -26,6 +26,9 @@ RATE_LIMIT_WINDOW = 1.0  # seconds
 RATE_LIMIT_MAX_MESSAGES = 100  # max messages per window
 RATE_LIMIT_MAX_ENTRIES = 10_000  # Maximum clients to track
 
+# Message size limits
+MAX_MESSAGE_SIZE = 1 * 1024 * 1024  # 1MB max message size
+
 
 class LRURateLimiter:
     """LRU-bounded rate limiter to prevent memory exhaustion."""
@@ -172,12 +175,32 @@ async def websocket_endpoint(
     if websocket.client:
         client_ip = websocket.client.host
 
-    # If token provided, validate and use session username
-    if token:
-        session = session_store.get_session(token)
-        if session:
-            name = session.user_name
-            logger.debug(f"WebSocket using authenticated session for {name}")
+    # SECURITY: Require authentication token
+    if not token:
+        security_logger.websocket_rejected(
+            reason="missing_token",
+            document_id=str(document_id),
+            user_name=name[:50],
+            client_ip=client_ip,
+        )
+        await websocket.close(code=4001, reason="Authentication required")
+        return
+
+    # Validate token and get session
+    session = session_store.get_session(token)
+    if not session:
+        security_logger.websocket_rejected(
+            reason="invalid_token",
+            document_id=str(document_id),
+            user_name=name[:50],
+            client_ip=client_ip,
+        )
+        await websocket.close(code=4001, reason="Invalid or expired token")
+        return
+
+    # Use authenticated username from session
+    name = session.user_name
+    logger.debug(f"WebSocket using authenticated session for {name}")
 
     # Validate username
     try:
@@ -245,12 +268,45 @@ async def websocket_endpoint(
 
                 if "bytes" in data:
                     message_bytes = data["bytes"]
+
+                    # Check message size limit
+                    if len(message_bytes) > MAX_MESSAGE_SIZE:
+                        security_logger.log_security_event(
+                            "websocket_message_too_large",
+                            size=len(message_bytes),
+                            limit=MAX_MESSAGE_SIZE,
+                            client_ip=client_ip,
+                            user_name=name,
+                        )
+                        await websocket.send_json({
+                            "type": "error",
+                            "payload": {"message": "Message too large"}
+                        })
+                        continue
+
                     await handle_binary_message(document_id, message_bytes, websocket)
 
                 elif "text" in data:
+                    text_data = data["text"]
+
+                    # Check message size limit for text
+                    if len(text_data) > MAX_MESSAGE_SIZE:
+                        security_logger.log_security_event(
+                            "websocket_message_too_large",
+                            size=len(text_data),
+                            limit=MAX_MESSAGE_SIZE,
+                            client_ip=client_ip,
+                            user_name=name,
+                        )
+                        await websocket.send_json({
+                            "type": "error",
+                            "payload": {"message": "Message too large"}
+                        })
+                        continue
+
                     # JSON message (cursor updates, etc.)
                     try:
-                        message = json.loads(data["text"])
+                        message = json.loads(text_data)
                         await handle_json_message(document_id, user_session, message, websocket)
                     except json.JSONDecodeError:
                         logger.debug(f"Invalid JSON received from client {client_id}")

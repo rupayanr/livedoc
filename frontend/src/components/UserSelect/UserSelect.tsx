@@ -1,7 +1,11 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import Avatar from 'boring-avatars'
+
+// Validation constants matching backend
+const MAX_USERNAME_LENGTH = 50
+const USERNAME_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9 _-]*$/
 
 const DEMO_USERS = [
   { id: '1', name: 'Alice', color: '#ef4444' },
@@ -23,6 +27,24 @@ export function UserSelect({ onSelectUser }: UserSelectProps) {
   const [selectedUser, setSelectedUser] = useState<typeof DEMO_USERS[0] | null>(null)
   const navigate = useNavigate()
 
+  // Validate username and provide feedback
+  const validation = useMemo(() => {
+    const trimmed = customName.trim()
+    if (!trimmed) {
+      return { valid: false, error: null }
+    }
+    if (trimmed.length > MAX_USERNAME_LENGTH) {
+      return { valid: false, error: `Username must be ${MAX_USERNAME_LENGTH} characters or less` }
+    }
+    if (!USERNAME_PATTERN.test(trimmed)) {
+      return {
+        valid: false,
+        error: 'Username must start with a letter or number and contain only letters, numbers, spaces, underscores, or hyphens'
+      }
+    }
+    return { valid: true, error: null }
+  }, [customName])
+
   const handleSelectUser = (user: typeof DEMO_USERS[0]) => {
     setSelectedUser(user)
     setCustomName('')
@@ -33,20 +55,21 @@ export function UserSelect({ onSelectUser }: UserSelectProps) {
       onSelectUser({ name: selectedUser.name, color: selectedUser.color })
       toast.success(`Welcome, ${selectedUser.name}!`)
       navigate('/')
-    } else if (customName.trim()) {
+    } else if (validation.valid && customName.trim()) {
       // Generate color from name
       let hash = 0
-      for (let i = 0; i < customName.length; i++) {
-        hash = customName.charCodeAt(i) + ((hash << 5) - hash)
+      const trimmedName = customName.trim()
+      for (let i = 0; i < trimmedName.length; i++) {
+        hash = trimmedName.charCodeAt(i) + ((hash << 5) - hash)
       }
       const hue = Math.abs(hash % 360)
-      onSelectUser({ name: customName.trim(), color: `hsl(${hue}, 70%, 50%)` })
-      toast.success(`Welcome, ${customName.trim()}!`)
+      onSelectUser({ name: trimmedName, color: `hsl(${hue}, 70%, 50%)` })
+      toast.success(`Welcome, ${trimmedName}!`)
       navigate('/')
     }
   }
 
-  const canContinue = selectedUser || customName.trim().length > 0
+  const canContinue = selectedUser || (customName.trim().length > 0 && validation.valid)
 
   return (
     <div className="min-h-screen h-screen-mobile bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center px-5 py-8 safe-area-top safe-area-bottom">
@@ -101,16 +124,35 @@ export function UserSelect({ onSelectUser }: UserSelectProps) {
 
         {/* Custom Name Input */}
         <div className="mb-6">
-          <input
-            type="text"
-            placeholder="Your name..."
-            value={customName}
-            onChange={(e) => {
-              setCustomName(e.target.value)
-              setSelectedUser(null)
-            }}
-            className="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white outline-none transition-all text-gray-900 placeholder:text-gray-400"
-          />
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Your name..."
+              value={customName}
+              maxLength={MAX_USERNAME_LENGTH}
+              onChange={(e) => {
+                setCustomName(e.target.value)
+                setSelectedUser(null)
+              }}
+              className={`w-full px-4 py-3.5 bg-gray-50 border rounded-xl focus:ring-2 focus:bg-white outline-none transition-all text-gray-900 placeholder:text-gray-400 ${
+                validation.error
+                  ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
+                  : 'border-gray-200 focus:ring-blue-500 focus:border-blue-500'
+              }`}
+            />
+            {customName.length > 0 && (
+              <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs ${
+                customName.trim().length > MAX_USERNAME_LENGTH - 10
+                  ? 'text-orange-500'
+                  : 'text-gray-400'
+              }`}>
+                {customName.trim().length}/{MAX_USERNAME_LENGTH}
+              </span>
+            )}
+          </div>
+          {validation.error && customName.length > 0 && (
+            <p className="mt-2 text-xs text-red-500">{validation.error}</p>
+          )}
         </div>
 
         {/* Continue Button */}
