@@ -28,7 +28,7 @@ function LoginRoute({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  const setCurrentUser = useUserStore((s) => s.setCurrentUser)
+  const login = useUserStore((s) => s.login)
 
   return (
     <ErrorBoundary>
@@ -61,7 +61,7 @@ export default function App() {
           path="/login"
           element={
             <LoginRoute>
-              <UserSelect onSelectUser={setCurrentUser} />
+              <UserSelect onSelectUser={login} />
             </LoginRoute>
           }
         />

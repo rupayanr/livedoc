@@ -19,7 +19,7 @@ const DEMO_USERS = [
 const AVATAR_COLORS = ['#ef4444', '#3b82f6', '#22c55e', '#a855f7', '#f59e0b', '#06b6d4']
 
 interface UserSelectProps {
-  onSelectUser: (user: { name: string; color: string }) => void
+  onSelectUser: (name: string, color: string) => Promise<void>
 }
 
 export function UserSelect({ onSelectUser }: UserSelectProps) {
@@ -50,29 +50,40 @@ export function UserSelect({ onSelectUser }: UserSelectProps) {
     setCustomName('')
   }
 
-  const handleContinue = () => {
-    if (selectedUser) {
-      onSelectUser({ name: selectedUser.name, color: selectedUser.color })
-      toast.success(`Welcome, ${selectedUser.name}!`)
-      navigate('/')
-    } else if (validation.valid && customName.trim()) {
-      // Generate color from name
-      let hash = 0
-      const trimmedName = customName.trim()
-      for (let i = 0; i < trimmedName.length; i++) {
-        hash = trimmedName.charCodeAt(i) + ((hash << 5) - hash)
+  const [isLoading, setIsLoading] = useState(false)
+
+  const handleContinue = async () => {
+    if (isLoading) return
+
+    setIsLoading(true)
+    try {
+      if (selectedUser) {
+        await onSelectUser(selectedUser.name, selectedUser.color)
+        toast.success(`Welcome, ${selectedUser.name}!`)
+        navigate('/')
+      } else if (validation.valid && customName.trim()) {
+        // Generate color from name
+        let hash = 0
+        const trimmedName = customName.trim()
+        for (let i = 0; i < trimmedName.length; i++) {
+          hash = trimmedName.charCodeAt(i) + ((hash << 5) - hash)
+        }
+        const hue = Math.abs(hash % 360)
+        await onSelectUser(trimmedName, `hsl(${hue}, 70%, 50%)`)
+        toast.success(`Welcome, ${trimmedName}!`)
+        navigate('/')
       }
-      const hue = Math.abs(hash % 360)
-      onSelectUser({ name: trimmedName, color: `hsl(${hue}, 70%, 50%)` })
-      toast.success(`Welcome, ${trimmedName}!`)
-      navigate('/')
+    } catch (error) {
+      toast.error('Login failed. Please try again.')
+    } finally {
+      setIsLoading(false)
     }
   }
 
   const canContinue = selectedUser || (customName.trim().length > 0 && validation.valid)
 
   return (
-    <div className="min-h-screen h-screen-mobile bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center px-5 py-8 safe-area-top safe-area-bottom">
+    <div className="min-h-screen h-screen-mobile bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-start pt-12 md:items-center md:pt-0 justify-center px-5 py-8 safe-area-top safe-area-bottom">
       <div className="bg-white rounded-3xl shadow-xl shadow-blue-500/10 p-6 md:p-8 max-w-md w-full">
         {/* Logo */}
         <div className="flex justify-center mb-6">
@@ -158,14 +169,14 @@ export function UserSelect({ onSelectUser }: UserSelectProps) {
         {/* Continue Button */}
         <button
           onClick={handleContinue}
-          disabled={!canContinue}
+          disabled={!canContinue || isLoading}
           className={`w-full py-3.5 rounded-xl font-semibold transition-all touch-target ${
-            canContinue
+            canContinue && !isLoading
               ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 shadow-lg shadow-blue-500/25 hover:shadow-xl'
               : 'bg-gray-100 text-gray-400 cursor-not-allowed'
           }`}
         >
-          Continue
+          {isLoading ? 'Signing in...' : 'Continue'}
         </button>
 
         {/* Footer */}
