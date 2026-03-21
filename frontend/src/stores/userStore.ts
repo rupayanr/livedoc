@@ -10,11 +10,12 @@ interface CurrentUser {
 interface UserState {
   currentUser: CurrentUser | null
   isAuthenticated: boolean
+  isValidating: boolean
   setCurrentUser: (user: CurrentUser) => void
   clearCurrentUser: () => void
   login: (name: string, color: string) => Promise<void>
   logout: () => Promise<void>
-  checkAuth: () => void
+  checkAuth: () => Promise<void>
 }
 
 // Safe localStorage wrapper for private browsing mode (iOS Safari, Android incognito)
@@ -44,9 +45,10 @@ const safeStorage = {
 
 export const useUserStore = create<UserState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       currentUser: null,
       isAuthenticated: false,
+      isValidating: false,
       setCurrentUser: (user) => set({ currentUser: user }),
       clearCurrentUser: () => {
         clearAuthToken()
@@ -60,9 +62,30 @@ export const useUserStore = create<UserState>()(
         await api.auth.logout()
         set({ currentUser: null, isAuthenticated: false })
       },
-      checkAuth: () => {
+      checkAuth: async () => {
         const hasToken = getAuthToken() !== null
-        set({ isAuthenticated: hasToken })
+        if (!hasToken) {
+          set({ isAuthenticated: false, currentUser: null, isValidating: false })
+          return
+        }
+
+        // If already validating, don't duplicate the request
+        if (get().isValidating) return
+
+        set({ isValidating: true })
+        try {
+          const result = await api.auth.validate()
+          if (result.valid) {
+            set({ isAuthenticated: true, isValidating: false })
+          } else {
+            // Token invalid, clear auth state
+            clearAuthToken()
+            set({ isAuthenticated: false, currentUser: null, isValidating: false })
+          }
+        } catch {
+          // On error, keep current state but stop validating
+          set({ isValidating: false })
+        }
       },
     }),
     {
@@ -72,7 +95,8 @@ export const useUserStore = create<UserState>()(
       onRehydrateStorage: () => (state) => {
         // Check auth status after rehydration
         if (state) {
-          state.checkAuth()
+          // Fire and forget - the isValidating state will handle loading
+          void state.checkAuth()
         }
       },
     }

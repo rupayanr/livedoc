@@ -102,6 +102,15 @@ async function fetchApi<T>(
       return undefined as T
     }
 
+    // Validate Content-Type before parsing JSON
+    const contentType = response.headers.get('Content-Type')
+    if (!contentType || !contentType.includes('application/json')) {
+      throw new ApiError(
+        response.status,
+        `Expected JSON response but got ${contentType || 'no Content-Type'}`
+      )
+    }
+
     return response.json()
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
@@ -137,6 +146,21 @@ export const api = {
 
     isAuthenticated: (): boolean => {
       return getAuthToken() !== null
+    },
+
+    getActiveUsers: async (): Promise<string[]> => {
+      const response = await fetchApi<{ users: string[] }>('/api/v1/auth/active-users')
+      return response.users
+    },
+
+    validate: async (): Promise<{ valid: boolean; userName: string | null }> => {
+      try {
+        const response = await fetchApi<{ valid: boolean; user_name: string | null }>('/api/v1/auth/validate')
+        return { valid: response.valid, userName: response.user_name }
+      } catch {
+        // On network error or timeout, assume invalid
+        return { valid: false, userName: null }
+      }
     },
   },
 

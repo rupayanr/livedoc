@@ -29,6 +29,17 @@ class LogoutResponse(BaseModel):
     success: bool
 
 
+class ValidateResponse(BaseModel):
+    """Token validation response."""
+    valid: bool
+    user_name: str | None = None
+
+
+class ActiveUsersResponse(BaseModel):
+    """Response containing list of active user names."""
+    users: list[str]
+
+
 @router.post("/login", response_model=LoginResponse, status_code=status.HTTP_200_OK)
 @limiter.limit("20/minute")
 async def login(request: Request, data: LoginRequest) -> LoginResponse:
@@ -47,6 +58,18 @@ async def login(request: Request, data: LoginRequest) -> LoginResponse:
     token = session_store.create_session(user_name)
     security_logger.auth_success(user_name=user_name, client_ip=client_ip)
     return LoginResponse(token=token, user_name=user_name)
+
+
+@router.get("/active-users", response_model=ActiveUsersResponse)
+@limiter.limit("30/minute")
+async def get_active_users(request: Request) -> ActiveUsersResponse:
+    """
+    Get list of currently logged-in user names.
+
+    Used by the login page to show which demo users are already in use.
+    """
+    users = session_store.get_active_users()
+    return ActiveUsersResponse(users=users)
 
 
 @router.post("/logout", response_model=LogoutResponse)
@@ -83,3 +106,31 @@ async def logout(
             user_name=user_name,
         )
     return LogoutResponse(success=success)
+
+
+@router.get("/validate", response_model=ValidateResponse)
+@limiter.limit("60/minute")
+async def validate_token(
+    request: Request,
+    authorization: str | None = Header(default=None),
+) -> ValidateResponse:
+    """
+    Validate the current session token.
+
+    Returns whether the token is valid and the associated user name.
+    Used by the frontend to verify session on page refresh.
+    """
+    if authorization is None:
+        return ValidateResponse(valid=False)
+
+    parts = authorization.split()
+    if len(parts) != 2 or parts[0].lower() != "bearer":
+        return ValidateResponse(valid=False)
+
+    token = parts[1]
+    session = session_store.get_session(token)
+
+    if session is None:
+        return ValidateResponse(valid=False)
+
+    return ValidateResponse(valid=True, user_name=session.user_name)

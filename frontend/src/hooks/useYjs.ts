@@ -6,6 +6,30 @@ import { createYjsConnection, type YjsConnection } from '../lib/yjs'
 import { useDocumentStore } from '../stores/documentStore'
 import type { User } from '../types'
 
+// Types for WebSocket JSON messages from server
+interface WsUserPayload {
+  id: string
+  name: string
+  color: string
+}
+
+interface WsUsersListMessage {
+  type: 'users_list'
+  payload: WsUserPayload[]
+}
+
+interface WsUserJoinedMessage {
+  type: 'user_joined'
+  payload: WsUserPayload
+}
+
+interface WsUserLeftMessage {
+  type: 'user_left'
+  payload: { id: string }
+}
+
+type WsJsonMessage = WsUsersListMessage | WsUserJoinedMessage | WsUserLeftMessage
+
 interface UseYjsReturn {
   ytext: Y.Text | null
   provider: WebsocketProvider | null
@@ -23,6 +47,8 @@ export function useYjs(documentId: string | null, userName: string, userColor?: 
   const setConnectionStatus = useDocumentStore((s) => s.setConnectionStatus)
   const setContent = useDocumentStore((s) => s.setContent)
   const setUsers = useDocumentStore((s) => s.setUsers)
+  const addUser = useDocumentStore((s) => s.addUser)
+  const removeUser = useDocumentStore((s) => s.removeUser)
 
   const wasConnectedRef = useRef(false)
 
@@ -137,6 +163,65 @@ export function useYjs(documentId: string | null, userName: string, userColor?: 
     // Initial users update (no changes object for initial load)
     updateUsersFromAwareness(connection.provider)
 
+    // Handle JSON messages from WebSocket (users_list, user_joined, user_left)
+    // This supplements Y.js awareness for users who joined before us
+    const handleWsMessage = (event: MessageEvent) => {
+      // Skip binary messages (Y.js sync protocol)
+      if (typeof event.data !== 'string') return
+
+      try {
+        const message = JSON.parse(event.data) as WsJsonMessage
+
+        switch (message.type) {
+          case 'users_list':
+            // Initial list of users when joining - merge with awareness
+            message.payload.forEach((user) => {
+              addUser({ id: user.id, name: user.name, color: user.color })
+            })
+            break
+          case 'user_joined':
+            // Add new user
+            addUser({
+              id: message.payload.id,
+              name: message.payload.name,
+              color: message.payload.color,
+            })
+            // Show toast if we're already connected
+            if (wasConnectedRef.current) {
+              toast(`${message.payload.name} joined`, { icon: '👋', duration: 2000 })
+            }
+            break
+          case 'user_left':
+            // Remove user - toast is handled by awareness change
+            removeUser(message.payload.id)
+            break
+        }
+      } catch {
+        // Not valid JSON, ignore (might be other message types)
+      }
+    }
+
+    // Set up WebSocket message listener
+    // The y-websocket provider exposes the WebSocket via the ws property
+    // We need to reattach when WebSocket reconnects
+    let currentWs: WebSocket | null = null
+
+    const attachWsListener = () => {
+      const ws = connection.provider.ws
+      if (ws && ws !== currentWs) {
+        if (currentWs) {
+          currentWs.removeEventListener('message', handleWsMessage)
+        }
+        currentWs = ws
+        ws.addEventListener('message', handleWsMessage)
+      }
+    }
+
+    // Attach initially and on status changes
+    attachWsListener()
+    const handleStatusForWs = () => attachWsListener()
+    connection.provider.on('status', handleStatusForWs)
+
     // Sync content to store for preview (with debouncing)
     let debounceTimer: ReturnType<typeof setTimeout> | null = null
     const DEBOUNCE_MS = 100 // Debounce content updates for better performance
@@ -197,6 +282,11 @@ export function useYjs(documentId: string | null, userName: string, userColor?: 
       if (debounceTimer) {
         clearTimeout(debounceTimer)
       }
+      // Clean up WebSocket listener
+      if (currentWs) {
+        currentWs.removeEventListener('message', handleWsMessage)
+      }
+      connection.provider.off('status', handleStatusForWs)
       connection.provider.off('status', handleStatusChange)
       connection.provider.off('sync', handleSynced)
       awareness.off('change', handleAwarenessChange)
@@ -214,7 +304,7 @@ export function useYjs(documentId: string | null, userName: string, userColor?: 
       setConnectionStatus('disconnected')
       setUsers([])
     }
-  }, [documentId, userName, userColor, handleStatusChange, handleSynced, setConnectionStatus, setContent, setUsers, updateUsersFromAwareness])
+  }, [documentId, userName, userColor, handleStatusChange, handleSynced, setConnectionStatus, setContent, setUsers, addUser, removeUser, updateUsersFromAwareness])
 
   return { ytext, provider, isConnected, isSynced }
 }

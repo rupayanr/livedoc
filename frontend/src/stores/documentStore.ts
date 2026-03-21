@@ -65,9 +65,15 @@ export const useDocumentStore = create<DocumentState>((set) => ({
     })),
 
   removeUser: (userId) =>
-    set((state) => ({
-      users: state.users.filter((u) => u.id !== userId),
-    })),
+    set((state) => {
+      // Also clean up the cursor to prevent memory leak
+      const newCursors = new Map(state.cursors)
+      newCursors.delete(userId)
+      return {
+        users: state.users.filter((u) => u.id !== userId),
+        cursors: newCursors,
+      }
+    }),
 
   updateCursor: (cursor) =>
     set((state) => {
