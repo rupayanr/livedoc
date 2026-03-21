@@ -5,16 +5,26 @@ import { api } from '../lib/api'
 import { useDocumentStore } from '../stores/documentStore'
 
 // Mock the API
-vi.mock('../lib/api', () => ({
-  api: {
-    documents: {
-      get: vi.fn(),
-      list: vi.fn(),
-      create: vi.fn(),
-      delete: vi.fn(),
+vi.mock('../lib/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../lib/api')>()
+  return {
+    ...actual,
+    api: {
+      ...actual.api,
+      documents: {
+        get: vi.fn(),
+        list: vi.fn(),
+        create: vi.fn(),
+        delete: vi.fn(),
+      },
+      auth: {
+        validate: vi.fn().mockResolvedValue({ valid: false }),
+      },
     },
-  },
-}))
+    getAuthToken: vi.fn().mockReturnValue(null),
+    clearAuthToken: vi.fn(),
+  }
+})
 
 const mockApi = vi.mocked(api)
 

@@ -45,7 +45,7 @@ describe('DocumentList', () => {
       renderWithRouter(<DocumentList />)
 
       expect(screen.getByText('LiveDoc')).toBeInTheDocument()
-      expect(screen.getByText('Collaborate in real-time')).toBeInTheDocument()
+      expect(screen.getByText('Your documents')).toBeInTheDocument()
     })
 
     it('should render "New Document" button', () => {
@@ -88,7 +88,7 @@ describe('DocumentList', () => {
       renderWithRouter(<DocumentList />)
 
       expect(screen.getByText('No documents yet')).toBeInTheDocument()
-      expect(screen.getByText('Tap the button above to get started')).toBeInTheDocument()
+      expect(screen.getByText('Create your first document to get started')).toBeInTheDocument()
     })
 
     it('should render document list', () => {

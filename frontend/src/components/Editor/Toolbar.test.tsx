@@ -8,13 +8,23 @@ import { useUserStore } from '../../stores/userStore'
 import { api } from '../../lib/api'
 
 // Mock API
-vi.mock('../../lib/api', () => ({
-  api: {
-    documents: {
-      update: vi.fn(),
+vi.mock('../../lib/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../lib/api')>()
+  return {
+    ...actual,
+    api: {
+      ...actual.api,
+      documents: {
+        update: vi.fn(),
+      },
+      auth: {
+        validate: vi.fn().mockResolvedValue({ valid: false }),
+      },
     },
-  },
-}))
+    getAuthToken: vi.fn().mockReturnValue(null),
+    clearAuthToken: vi.fn(),
+  }
+})
 
 // Mock react-hot-toast
 vi.mock('react-hot-toast', () => ({
@@ -69,7 +79,7 @@ describe('Toolbar', () => {
         <Toolbar {...defaultProps} connectionStatus="disconnected" isConnected={false} />
       )
 
-      expect(screen.getByText('Disconnected')).toBeInTheDocument()
+      expect(screen.getByText('Offline')).toBeInTheDocument()
     })
 
     it('should render connection indicator when connecting', () => {
@@ -85,7 +95,7 @@ describe('Toolbar', () => {
     it('should show green indicator when connected', () => {
       renderWithRouter(<Toolbar {...defaultProps} />)
 
-      const indicator = document.querySelector('.bg-green-500')
+      const indicator = document.querySelector('.bg-emerald-500')
       expect(indicator).toBeInTheDocument()
     })
 
@@ -103,7 +113,7 @@ describe('Toolbar', () => {
         <Toolbar {...defaultProps} connectionStatus="connecting" isConnected={false} />
       )
 
-      const indicator = document.querySelector('.bg-yellow-500')
+      const indicator = document.querySelector('.bg-amber-500')
       expect(indicator).toBeInTheDocument()
     })
   })
@@ -164,7 +174,7 @@ describe('Toolbar', () => {
       renderWithRouter(<Toolbar {...defaultProps} />)
 
       // Should not find user badge section
-      expect(screen.queryByTitle('Switch user')).not.toBeInTheDocument()
+      expect(screen.queryByTitle('Sign out')).not.toBeInTheDocument()
     })
 
     it('should have logout button', () => {
@@ -172,7 +182,7 @@ describe('Toolbar', () => {
 
       renderWithRouter(<Toolbar {...defaultProps} />)
 
-      expect(screen.getByTitle('Switch user')).toBeInTheDocument()
+      expect(screen.getByTitle('Sign out')).toBeInTheDocument()
     })
   })
 

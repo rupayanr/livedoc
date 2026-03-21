@@ -1,8 +1,41 @@
 import '@testing-library/jest-dom'
-import { afterEach, vi } from 'vitest'
+import { afterEach, beforeEach, vi } from 'vitest'
 import { cleanup } from '@testing-library/react'
 
+// Mock localStorage
+const localStorageMock = {
+  store: {} as Record<string, string>,
+  getItem: vi.fn((key: string) => localStorageMock.store[key] || null),
+  setItem: vi.fn((key: string, value: string) => {
+    localStorageMock.store[key] = value
+  }),
+  removeItem: vi.fn((key: string) => {
+    delete localStorageMock.store[key]
+  }),
+  clear: vi.fn(() => {
+    localStorageMock.store = {}
+  }),
+}
+Object.defineProperty(window, 'localStorage', { value: localStorageMock })
+
+// Mock fetch globally for api calls
+global.fetch = vi.fn().mockImplementation(() =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    json: () => Promise.resolve({ valid: false }),
+    headers: {
+      get: () => 'application/json',
+    },
+  })
+)
+
 // Cleanup after each test
+beforeEach(() => {
+  localStorageMock.clear()
+  vi.clearAllMocks()
+})
+
 afterEach(() => {
   cleanup()
 })
